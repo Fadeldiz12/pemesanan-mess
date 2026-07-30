@@ -16,8 +16,8 @@ return new class extends Migration
             $table->foreignId('mess_id')->constrained('messes')->cascadeOnDelete();
             $table->string('nama_kamar'); // nama/nomor kamar, mis. "Kamar 101"
             $table->integer('kapasitas');
-            $table->enum('status_ketersediaan', ['tersedia', 'dipinjam'])->default('tersedia');
-            $table->enum('minimum_jabatan', ['staff', 'kasubag', 'kabag'])->default('staff'); 
+            $table->string('status_ketersediaan')->default('Tersedia'); // Tersedia / Dipinjam
+            $table->string('minimum_jabatan')->default('Staff'); // Staff / Kasubbag / Kabag - samain sama vehicle_borrowings
             $table->timestamps();
             $table->softDeletes();
         });
