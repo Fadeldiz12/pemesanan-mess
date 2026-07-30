@@ -11,9 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('bugalo', function (Blueprint $table) {
+        Schema::create('bungalows', function (Blueprint $table) {
             $table->id();
+            $table->string('nama');
+            $table->text('alamat');
+            $table->text('deskripsi')->nullable();
+            $table->string('foto')->nullable();
+            $table->integer('kapasitas'); // bungalow dipesan per unit, bukan per kamar
+            $table->boolean('is_active')->default(true); // true = aktif, false = nonaktif
+            $table->enum('minimum_jabatan', ['staff', 'kasubag', 'kabag'])->default('staff'); // syarat kelayakan pemesanan
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
@@ -22,6 +30,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('bugalo');
+        Schema::dropIfExists('bungalows');
     }
 };

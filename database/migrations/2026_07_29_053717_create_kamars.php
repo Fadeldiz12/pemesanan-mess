@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('nama_kamar'); // nama/nomor kamar, mis. "Kamar 101"
             $table->integer('kapasitas');
             $table->enum('status_ketersediaan', ['tersedia', 'dipinjam'])->default('tersedia');
-            $table->enum('minimum_jabatan', ['staff', 'kasubag', 'kabag'])->default('staff'); // syarat kelayakan pemesanan
+            $table->enum('minimum_jabatan', ['staff', 'kasubag', 'kabag'])->default('staff'); 
             $table->timestamps();
             $table->softDeletes();
         });
