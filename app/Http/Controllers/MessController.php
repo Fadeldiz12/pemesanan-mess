@@ -4,6 +4,7 @@ namespace App\Http\Controllers\MessBooking;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Support\AccessMatrix;
 use App\Models\Mess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -20,7 +21,7 @@ class MessController extends Controller
 {
     public function index(Request $request)
     {
-        $this->authorizeAdminOnly($request, onlyWrite: false);
+        $this->authorizeAction($request, 'read');
 
         $messes = Mess::withCount('kamars')
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
@@ -42,7 +43,7 @@ class MessController extends Controller
 
     public function store(Request $request): JsonResponse|RedirectResponse
     {
-        $this->authorizeAdminOnly($request);
+        $this->authorizeAction($request, 'create');
 
         $validated = $request->validate([
             'nama' => ['required', 'string', 'max:150'],
@@ -65,7 +66,7 @@ class MessController extends Controller
 
     public function update(Request $request, Mess $mess): JsonResponse
     {
-        $this->authorizeAdminOnly($request);
+        $this->authorizeAction($request, 'update');
 
         $validated = $request->validate([
             'nama' => ['sometimes', 'required', 'string', 'max:150'],
@@ -91,7 +92,7 @@ class MessController extends Controller
 
     public function destroy(Request $request, Mess $mess): JsonResponse
     {
-        $this->authorizeAdminOnly($request);
+        $this->authorizeAction($request, 'delete');
 
         // Cegah hapus Mess yang masih punya kamar dengan peminjaman aktif.
         $hasActiveBooking = $mess->kamars()
@@ -111,10 +112,17 @@ class MessController extends Controller
         return response()->json(['message' => 'Mess berhasil dihapus.']);
     }
 
-    private function authorizeAdminOnly(Request $request, bool $onlyWrite = true): void
+    /**
+     * Gate berbasis role_permissions (menu_key 'mess'), bukan hardcode role
+     * 'Admin' - supaya role lain bisa diberi akses tanpa ubah kode kalau
+     * suatu saat dibutuhkan, cukup lewat manajemen role.
+     */
+    private function authorizeAction(Request $request, string $action): void
     {
-        if ($onlyWrite && $request->user()->role !== 'Admin') {
-            abort(403, 'Hanya Admin yang dapat mengelola data Mess.');
-        }
+        abort_unless(
+            AccessMatrix::can('mess', $action, $request->user()),
+            403,
+            "Anda tidak memiliki akses '{$action}' pada data Mess."
+        );
     }
 }

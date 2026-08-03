@@ -16,16 +16,22 @@ class Peminjaman extends Model
     protected $table = 'peminjaman';
 
     /**
-     * Urutan rank jabatan. Dipakai buat auto-approve tahap yang setara/di bawah
-     * rank pemohon sendiri, dan buat aturan prioritas saat bentrok jadwal.
-     * Sengaja bukan kolom database (roles.level gak dipakai di sini) - cukup
-     * mapping di kode, ngikutin gaya vehicle_borrowings yang hardcode tahap tetap.
+     * Urutan rank jabatan, MENGIKUTI PENAMAAN ROLE DI app/Support/AccessMatrix.php
+     * (bukan lagi Staff/Kasubbag/Kabag/Admin buatan sendiri). 'User' adalah role
+     * pemohon standar (setara "Staff" versi lama) - dipisah dari role approver
+     * 'Staff Approval', biar tahap staff beneran butuh approver asli, bukan
+     * auto-lolos buat semua pemohon seperti sebelumnya. Dipakai buat auto-approve
+     * tahap yang levelnya setara/di bawah rank pemohon sendiri, dan buat aturan
+     * prioritas saat bentrok jadwal. 'Supir'/'Viewer' sengaja gak dimasukkan -
+     * gak relevan buat alur peminjaman mess.
      */
     public const RANK_ORDER = [
-        'Staff' => 1,
-        'Kasubbag' => 2,
-        'Kabag' => 3,
-        'Admin' => 4,
+        'User' => 1,
+        'Staff Approval' => 2,
+        'Kasubbag Approval' => 3,
+        'Kabag Approval' => 4,
+        'Admin' => 5,
+        'Super Admin' => 6,
     ];
 
     protected $fillable = [
@@ -63,19 +69,20 @@ class Peminjaman extends Model
         static::creating(function (Peminjaman $peminjaman) {
             $level = $peminjaman->rankLevel();
 
-            if ($level >= self::RANK_ORDER['Staff']) {
+            if ($level >= self::RANK_ORDER['Staff Approval']) {
                 $peminjaman->staff_approval_status = 'Disetujui';
             }
-            if ($level >= self::RANK_ORDER['Kasubbag']) {
+            if ($level >= self::RANK_ORDER['Kasubbag Approval']) {
                 $peminjaman->kasubbag_approval_status = 'Disetujui';
             }
-            if ($level >= self::RANK_ORDER['Kabag']) {
+            if ($level >= self::RANK_ORDER['Kabag Approval']) {
                 $peminjaman->kabag_approval_status = 'Disetujui';
             }
 
             $peminjaman->approval_status = match (true) {
-                $level < self::RANK_ORDER['Kasubbag'] => 'Menunggu Kasubbag',
-                $level < self::RANK_ORDER['Kabag'] => 'Menunggu Kabag',
+                $level < self::RANK_ORDER['Staff Approval'] => 'Menunggu Staff',
+                $level < self::RANK_ORDER['Kasubbag Approval'] => 'Menunggu Kasubbag',
+                $level < self::RANK_ORDER['Kabag Approval'] => 'Menunggu Kabag',
                 default => 'Menunggu Admin',
             };
         });
@@ -83,7 +90,7 @@ class Peminjaman extends Model
 
     public function rankLevel(): int
     {
-        return self::RANK_ORDER[$this->peminjam_role] ?? self::RANK_ORDER['Staff'];
+        return self::RANK_ORDER[$this->peminjam_role] ?? self::RANK_ORDER['User'];
     }
 
     /**
@@ -103,7 +110,12 @@ class Peminjaman extends Model
      */
     public function candidateApprovers(string $stage): Collection
     {
-        $roleMap = ['staff' => 'Staff', 'kasubbag' => 'Kasubbag', 'kabag' => 'Kabag', 'admin' => 'Admin'];
+        $roleMap = [
+            'staff' => 'Staff Approval',
+            'kasubbag' => 'Kasubbag Approval',
+            'kabag' => 'Kabag Approval',
+            'admin' => 'Admin',
+        ];
         $targetRole = $roleMap[$stage] ?? null;
 
         if (! $targetRole) {

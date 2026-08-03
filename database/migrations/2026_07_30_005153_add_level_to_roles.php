@@ -6,23 +6,17 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::table('roles', function (Blueprint $table) {
-            //
+            $table->unsignedTinyInteger('level')->default(0)->after('name'); // makin besar = makin tinggi
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('roles', function (Blueprint $table) {
-            //
+            $table->dropColumn('level');
         });
     }
 };

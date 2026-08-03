@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('nama_kamar'); // nama/nomor kamar, mis. "Kamar 101"
             $table->integer('kapasitas');
             $table->string('status_ketersediaan')->default('Tersedia'); // Tersedia / Dipinjam
-            $table->string('minimum_jabatan')->default('Staff'); // Staff / Kasubbag / Kabag - samain sama vehicle_borrowings
+            $table->string('minimum_jabatan')->default('User'); // User / Staff Approval / Kasubbag Approval / Kabag Approval
             $table->timestamps();
             $table->softDeletes();
         });

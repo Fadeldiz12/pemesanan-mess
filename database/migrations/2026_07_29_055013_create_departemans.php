@@ -20,8 +20,10 @@ return new class extends Migration
             $table->timestamps();
         });
 
+        // Backfill dari users.department yang sudah kepakai. Referensi ke
+        // vehicle_borrowings DIHAPUS - project ini standalone, tabel itu
+        // gak ada di sini dan bikin migrate gagal ("table not found").
         $departments = collect(DB::table('users')->whereNotNull('department')->pluck('department'))
-            ->merge(DB::table('vehicle_borrowings')->whereNotNull('borrower_department')->pluck('borrower_department'))
             ->filter()
             ->map(fn ($name) => trim($name))
             ->filter()

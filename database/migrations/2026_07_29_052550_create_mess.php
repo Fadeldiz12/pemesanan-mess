@@ -17,7 +17,7 @@ return new class extends Migration
             $table->text('alamat');
             $table->text('deskripsi')->nullable();
             $table->string('foto')->nullable(); // path foto, disimpan via storage/link
-            $table->boolean('is_active')->default(true); // true = aktif, false = nonaktif
+            $table->string('status')->default('Aktif'); // samain pola string status dgn departments/roles/vehicle_borrowings
             $table->timestamps();
             $table->softDeletes(); // histori peminjaman/rating tetap terjaga saat mess dinonaktifkan
         });

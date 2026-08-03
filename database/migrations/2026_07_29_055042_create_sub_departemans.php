@@ -26,9 +26,8 @@ return new class extends Migration
             $table->string('sub_department')->nullable()->after('department');
         });
 
-        Schema::table('vehicle_borrowings', function (Blueprint $table) {
-            $table->string('borrower_sub_department')->nullable()->after('borrower_department');
-        });
+        // Referensi ke vehicle_borrowings (ALTER + backfill) DIHAPUS - project
+        // ini standalone, tabel itu gak ada di sini dan bikin migrate gagal.
 
         $departments = DB::table('departments')->get();
         foreach ($departments as $index => $department) {
@@ -43,15 +42,10 @@ return new class extends Migration
         }
 
         DB::table('users')->whereNull('sub_department')->update(['sub_department' => 'Umum']);
-        DB::table('vehicle_borrowings')->whereNull('borrower_sub_department')->update(['borrower_sub_department' => 'Umum']);
     }
 
     public function down(): void
     {
-        Schema::table('vehicle_borrowings', function (Blueprint $table) {
-            $table->dropColumn('borrower_sub_department');
-        });
-
         Schema::table('users', function (Blueprint $table) {
             $table->dropColumn('sub_department');
         });

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Bungalow;
 use App\Models\Peminjaman;
+use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -18,10 +19,12 @@ use Illuminate\Validation\Rule;
  */
 class BungalowController extends Controller
 {
-    private const JABATAN_OPTIONS = ['Staff', 'Kasubbag', 'Kabag'];
+    private const JABATAN_OPTIONS = ['User', 'Staff Approval', 'Kasubbag Approval', 'Kabag Approval'];
 
     public function index(Request $request): JsonResponse
     {
+        $this->authorizeAction($request, 'read');
+
         $bungalows = Bungalow::when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('search'), fn ($q) => $q->where('nama', 'like', '%' . $request->search . '%'))
             ->orderBy('nama')
@@ -37,7 +40,7 @@ class BungalowController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $this->authorizeAdminOnly($request);
+        $this->authorizeAction($request, 'create');
 
         $validated = $request->validate([
             'nama' => ['required', 'string', 'max:150'],
@@ -62,7 +65,7 @@ class BungalowController extends Controller
 
     public function update(Request $request, Bungalow $bungalow): JsonResponse
     {
-        $this->authorizeAdminOnly($request);
+        $this->authorizeAction($request, 'update');
 
         $validated = $request->validate([
             'nama' => ['sometimes', 'required', 'string', 'max:150'],
@@ -90,7 +93,7 @@ class BungalowController extends Controller
 
     public function destroy(Request $request, Bungalow $bungalow): JsonResponse
     {
-        $this->authorizeAdminOnly($request);
+        $this->authorizeAction($request, 'delete');
 
         $hasActiveBooking = Peminjaman::where('bookable_type', Bungalow::class)
             ->where('bookable_id', $bungalow->id)
@@ -110,10 +113,16 @@ class BungalowController extends Controller
         return response()->json(['message' => 'Bungalow berhasil dihapus.']);
     }
 
-    private function authorizeAdminOnly(Request $request): void
+    /**
+     * Gate berbasis role_permissions (menu_key 'bungalow'), bukan hardcode
+     * role 'Admin' - konsisten dengan pola di MessController.
+     */
+    private function authorizeAction(Request $request, string $action): void
     {
-        if ($request->user()->role !== 'Admin') {
-            abort(403, 'Hanya Admin yang dapat mengelola data Bungalow.');
-        }
+        abort_unless(
+            AccessMatrix::can('bungalow', $action, $request->user()),
+            403,
+            "Anda tidak memiliki akses '{$action}' pada data Bungalow."
+        );
     }
 }

@@ -7,6 +7,7 @@ use App\Models\ActivityLog;
 use App\Models\Kamar;
 use App\Models\Mess;
 use App\Models\Peminjaman;
+use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -18,10 +19,12 @@ use Illuminate\Validation\Rule;
  */
 class KamarController extends Controller
 {
-    private const JABATAN_OPTIONS = ['Staff', 'Kasubbag', 'Kabag'];
+    private const JABATAN_OPTIONS = ['User', 'Staff Approval', 'Kasubbag Approval', 'Kabag Approval'];
 
     public function index(Request $request, Mess $mess): JsonResponse
     {
+        $this->authorizeAction($request, 'read');
+
         $kamars = $mess->kamars()
             ->when($request->filled('status_ketersediaan'), fn ($q) => $q->where('status_ketersediaan', $request->status_ketersediaan))
             ->orderBy('nama_kamar')
@@ -39,7 +42,7 @@ class KamarController extends Controller
 
     public function store(Request $request, Mess $mess): JsonResponse
     {
-        $this->authorizeAdminOnly($request);
+        $this->authorizeAction($request, 'create');
 
         $validated = $request->validate([
             'nama_kamar' => ['required', 'string', 'max:100'],
@@ -57,7 +60,7 @@ class KamarController extends Controller
 
     public function update(Request $request, Mess $mess, Kamar $kamar): JsonResponse
     {
-        $this->authorizeAdminOnly($request);
+        $this->authorizeAction($request, 'update');
         abort_if($kamar->mess_id !== $mess->id, 404);
 
         $validated = $request->validate([
@@ -76,7 +79,7 @@ class KamarController extends Controller
 
     public function destroy(Request $request, Mess $mess, Kamar $kamar): JsonResponse
     {
-        $this->authorizeAdminOnly($request);
+        $this->authorizeAction($request, 'delete');
         abort_if($kamar->mess_id !== $mess->id, 404);
 
         $hasActiveBooking = Peminjaman::where('bookable_type', Kamar::class)
@@ -97,10 +100,16 @@ class KamarController extends Controller
         return response()->json(['message' => 'Kamar berhasil dihapus.']);
     }
 
-    private function authorizeAdminOnly(Request $request): void
+    /**
+     * Kamar dianggap bagian dari data Mess, jadi menu_key-nya sama ('mess')
+     * dengan MessController - satu tempat pengaturan akses buat keduanya.
+     */
+    private function authorizeAction(Request $request, string $action): void
     {
-        if ($request->user()->role !== 'Admin') {
-            abort(403, 'Hanya Admin yang dapat mengelola data Kamar.');
-        }
+        abort_unless(
+            AccessMatrix::can('mess', $action, $request->user()),
+            403,
+            "Anda tidak memiliki akses '{$action}' pada data Kamar."
+        );
     }
 }

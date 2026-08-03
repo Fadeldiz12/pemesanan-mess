@@ -18,8 +18,8 @@ return new class extends Migration
             $table->text('deskripsi')->nullable();
             $table->string('foto')->nullable();
             $table->integer('kapasitas'); // bungalow dipesan per unit, bukan per kamar
-            $table->boolean('is_active')->default(true); // true = aktif, false = nonaktif
-            $table->enum('minimum_jabatan', ['staff', 'kasubag', 'kabag'])->default('staff'); // syarat kelayakan pemesanan
+            $table->string('status')->default('Aktif'); // samain pola string status, bukan boolean
+            $table->string('minimum_jabatan')->default('User'); // User / Staff Approval / Kasubbag Approval / Kabag Approval
             $table->timestamps();
             $table->softDeletes();
         });

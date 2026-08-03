@@ -7,6 +7,7 @@ use App\Models\ActivityLog;
 use App\Models\Bungalow;
 use App\Models\Kamar;
 use App\Models\Peminjaman;
+use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -192,7 +193,7 @@ class PeminjamanMessController extends Controller
      */
     public function conflicts(Request $request, Peminjaman $peminjaman): JsonResponse
     {
-        $this->authorizeAdminOnly($request);
+        $this->authorizeAction($request, 'approve'); // conflicts()
 
         $others = Peminjaman::bentrok(
             $peminjaman->bookable_type,
@@ -222,7 +223,7 @@ class PeminjamanMessController extends Controller
      */
     public function conflictReject(Request $request, Peminjaman $peminjaman): JsonResponse
     {
-        $this->authorizeAdminOnly($request);
+        $this->authorizeAction($request, 'approve'); // conflictReject()
 
         $validated = $request->validate([
             'alasan' => ['nullable', 'string', 'max:500'],
@@ -244,12 +245,65 @@ class PeminjamanMessController extends Controller
     }
 
     /**
+     * Langkah 4 (lanjutan): pemohon mengajukan waktu baru setelah soft-reject
+     * ("Perlu Reschedule"). Tahap Staff/Kasubbag/Kabag yang sudah Disetujui
+     * TETAP sah - cuma tahap Admin yang direset ke Menunggu, sesuai kesepakatan
+     * sebelumnya (gak perlu approval ulang dari awal).
+     */
+    public function reschedule(Request $request, Peminjaman $peminjaman): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($peminjaman->created_by !== $user->id) {
+            abort(403, 'Hanya pemohon yang dapat mengganti waktu peminjaman ini.');
+        }
+
+        if ($peminjaman->peminjaman_status !== 'Perlu Reschedule') {
+            return response()->json(['message' => 'Peminjaman ini tidak sedang menunggu reschedule.'], 422);
+        }
+
+        $validated = $request->validate([
+            'waktu_mulai' => ['required', 'date', 'after_or_equal:now'],
+            'waktu_selesai' => ['required', 'date', 'after:waktu_mulai'],
+        ]);
+
+        $bentrok = Peminjaman::bentrok(
+            $peminjaman->bookable_type,
+            $peminjaman->bookable_id,
+            $validated['waktu_mulai'],
+            $validated['waktu_selesai'],
+            $peminjaman->id
+        )->exists();
+
+        if ($bentrok) {
+            return response()->json(['message' => 'Waktu baru ini masih bentrok dengan peminjaman lain.'], 422);
+        }
+
+        DB::transaction(function () use ($peminjaman, $validated) {
+            $peminjaman->update([
+                'waktu_mulai' => $validated['waktu_mulai'],
+                'waktu_selesai' => $validated['waktu_selesai'],
+                'admin_approval_status' => 'Menunggu',
+                'admin_approved_by' => null,
+                'admin_approved_at' => null,
+                'rejected_by' => null,
+                'peminjaman_status' => 'Diajukan',
+                'approval_status' => 'Menunggu Admin',
+            ]);
+        });
+
+        ActivityLog::record($user, 'reschedule', 'peminjaman_mess', (string) $peminjaman->id, "Reschedule {$peminjaman->peminjaman_code}");
+
+        return response()->json($peminjaman->fresh());
+    }
+
+    /**
      * Langkah 3: wewenang khusus Admin mengedit waktu peminjaman sebelum
      * status akhir ditetapkan (resolusi bentrok / penyesuaian operasional).
      */
     public function updateWaktu(Request $request, Peminjaman $peminjaman): JsonResponse
     {
-        $this->authorizeAdminOnly($request);
+        $this->authorizeAction($request, 'update'); // updateWaktu()
 
         if (in_array($peminjaman->peminjaman_status, ['Ditolak', 'Selesai'], true)) {
             return response()->json(['message' => 'Waktu peminjaman dengan status ini tidak dapat diubah.'], 422);
@@ -309,13 +363,13 @@ class PeminjamanMessController extends Controller
      */
     public function exportExcel(Request $request)
     {
-        $this->authorizeAdminOnly($request);
+        $this->authorizeAction($request, 'export'); // exportExcel()
 
         $filters = $request->validate([
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date'],
             'unit_type' => ['nullable', Rule::in(array_keys(self::BOOKABLE_MAP))],
-            'peminjam_role' => ['nullable', Rule::in(['Staff', 'Kasubbag', 'Kabag'])],
+            'peminjam_role' => ['nullable', Rule::in(['User', 'Staff Approval', 'Kasubbag Approval', 'Kabag Approval'])],
             'status' => ['nullable', 'string'],
         ]);
 
@@ -332,13 +386,13 @@ class PeminjamanMessController extends Controller
      */
     public function exportPdf(Request $request)
     {
-        $this->authorizeAdminOnly($request);
+        $this->authorizeAction($request, 'export'); // exportPdf()
 
         $filters = $request->validate([
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date'],
             'unit_type' => ['nullable', Rule::in(array_keys(self::BOOKABLE_MAP))],
-            'peminjam_role' => ['nullable', Rule::in(['Staff', 'Kasubbag', 'Kabag'])],
+            'peminjam_role' => ['nullable', Rule::in(['User', 'Staff Approval', 'Kasubbag Approval', 'Kabag Approval'])],
             'status' => ['nullable', 'string'],
         ]);
 
@@ -386,8 +440,8 @@ class PeminjamanMessController extends Controller
      */
     private function assertJabatanEligible(Kamar|Bungalow $unit, string $peminjamRole): void
     {
-        $minLevel = Peminjaman::RANK_ORDER[$unit->minimum_jabatan] ?? Peminjaman::RANK_ORDER['Staff'];
-        $userLevel = Peminjaman::RANK_ORDER[$peminjamRole] ?? Peminjaman::RANK_ORDER['Staff'];
+        $minLevel = Peminjaman::RANK_ORDER[$unit->minimum_jabatan] ?? Peminjaman::RANK_ORDER['User'];
+        $userLevel = Peminjaman::RANK_ORDER[$peminjamRole] ?? Peminjaman::RANK_ORDER['User'];
 
         if ($userLevel < $minLevel) {
             throw ValidationException::withMessages([
@@ -430,7 +484,7 @@ class PeminjamanMessController extends Controller
      */
     private function assertIsApproverForStage($user, Peminjaman $peminjaman, string $stage): void
     {
-        $roleMap = ['staff' => 'Staff', 'kasubbag' => 'Kasubbag', 'kabag' => 'Kabag', 'admin' => 'Admin'];
+        $roleMap = ['staff' => 'Staff Approval', 'kasubbag' => 'Kasubbag Approval', 'kabag' => 'Kabag Approval', 'admin' => 'Admin'];
         $expectedRole = $roleMap[$stage];
 
         if ($user->role !== $expectedRole) {
@@ -453,9 +507,9 @@ class PeminjamanMessController extends Controller
     private function scopeApprovalQueue($query, $user)
     {
         return match ($user->role) {
-            'Kasubbag' => $query->where('approval_status', 'Menunggu Kasubbag')
+            'Kasubbag Approval' => $query->where('approval_status', 'Menunggu Kasubbag')
                 ->where('peminjam_sub_department', $user->sub_department),
-            'Kabag' => $query->where('approval_status', 'Menunggu Kabag')
+            'Kabag Approval' => $query->where('approval_status', 'Menunggu Kabag')
                 ->where('peminjam_department', $user->department),
             'Admin' => $query->where('approval_status', 'Menunggu Admin'),
             default => $query->where('approval_status', 'Menunggu Staff')
@@ -483,10 +537,19 @@ class PeminjamanMessController extends Controller
         abort(403, 'Anda tidak berhak melihat peminjaman ini.');
     }
 
-    private function authorizeAdminOnly(Request $request): void
+    /**
+     * Gate lewat AccessMatrix::can() (menu_key 'peminjaman-mess'), untuk aksi
+     * yang bukan approve/reject per tahap (itu tetap lewat
+     * assertIsApproverForStage() karena butuh cocok department/sub_department,
+     * bukan sekadar cek role generik). Dipakai untuk conflicts/conflictReject
+     * ('approve'), updateWaktu ('update'), dan exportExcel/exportPdf ('export').
+     */
+    private function authorizeAction(Request $request, string $action): void
     {
-        if ($request->user()->role !== 'Admin') {
-            abort(403, 'Hanya Admin yang dapat melakukan aksi ini.');
-        }
+        abort_unless(
+            AccessMatrix::can('peminjaman-mess', $action, $request->user()),
+            403,
+            "Anda tidak memiliki akses '{$action}' pada peminjaman."
+        );
     }
 }
