@@ -40,6 +40,16 @@ class AccessMatrix
             'dashboard' => ['label' => 'Dashboard', 'group' => 'Operasional', 'actions' => ['read']],
             'departments' => ['label' => 'Bagian', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
             'sub-departments' => ['label' => 'Subbagian', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
+            // ⬇️ Modul Mess/Bungalow (dipakai MessController, KamarController,
+            // BungalowController, PeminjamanMessController - lihat menu_key di
+            // masing-masing authorizeAction()). Sebelumnya TIDAK ADA di sini,
+            // padahal RolePermissionSeeder sudah lama nyiapin role_permissions
+            // untuk key-key ini - akibatnya AccessMatrix::can() selalu return
+            // false duluan di guard array_key_exists(), sebelum sempat baca
+            // row role_permissions-nya sama sekali.
+            'mess' => ['label' => 'Mess & Kamar', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
+            'bungalow' => ['label' => 'Bungalow', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
+            'peminjaman-mess' => ['label' => 'Peminjaman Mess/Bungalow', 'group' => 'Peminjaman', 'actions' => ['read', 'create', 'approve', 'update', 'export']],
             'vehicle-types' => ['group' => 'Master Data', 'label' => 'Jenis Kendaraan', 'actions' => ['read', 'create', 'update', 'delete']],
             'vehicles' => ['label' => 'Kendaraan', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
             'drivers' => ['label' => 'Supir', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
@@ -62,6 +72,9 @@ class AccessMatrix
                 'dashboard' => ['read'],
                 'departments' => ['read', 'create', 'update', 'delete'],
                 'sub-departments' => ['read', 'create', 'update', 'delete'],
+                'mess' => ['read', 'create', 'update', 'delete'],
+                'bungalow' => ['read', 'create', 'update', 'delete'],
+                'peminjaman-mess' => ['read', 'create', 'approve', 'update', 'export'],
                 'vehicle-types' => ['read', 'create', 'update', 'delete'],
                 'vehicles' => ['read', 'create', 'update'],
                 'drivers' => ['read', 'create', 'update'],
@@ -75,6 +88,9 @@ class AccessMatrix
             ],
             'Staff Approval' => [
                 'dashboard' => ['read'],
+                'mess' => ['read'],
+                'bungalow' => ['read'],
+                'peminjaman-mess' => ['read', 'create', 'approve'],
                 'borrowings-create' => ['read', 'create'],
                 'borrowings' => ['read', 'delete'],
                 'borrowings-history' => ['read'],
@@ -84,6 +100,9 @@ class AccessMatrix
             ],
             'Kasubbag Approval' => [
                 'dashboard' => ['read'],
+                'mess' => ['read'],
+                'bungalow' => ['read'],
+                'peminjaman-mess' => ['read', 'create', 'approve'],
                 'borrowings' => ['read'],
                 'borrowings-history' => ['read'],
                 'approval' => ['read', 'approve'],
@@ -92,6 +111,9 @@ class AccessMatrix
             ],
             'Kabag Approval' => [
                 'dashboard' => ['read'],
+                'mess' => ['read'],
+                'bungalow' => ['read'],
+                'peminjaman-mess' => ['read', 'create', 'approve'],
                 'borrowings' => ['read'],
                 'borrowings-history' => ['read'],
                 'approval' => ['read', 'approve'],
@@ -100,6 +122,9 @@ class AccessMatrix
             ],
             'User' => [
                 'dashboard' => ['read'],
+                'mess' => ['read'],
+                'bungalow' => ['read'],
+                'peminjaman-mess' => ['read', 'create'],
                 'borrowings-create' => ['read', 'create'],
                 'borrowings' => ['read', 'delete'],
                 'borrowings-history' => ['read'],
