@@ -34,22 +34,18 @@ class Peminjaman extends Model
         'Super Admin' => 6,
     ];
 
-    protected $fillable = [
-        'peminjaman_code',
-        'bookable_type',
-        'bookable_id',
-        'waktu_mulai',
-        'waktu_selesai',
-        'peminjam_department',
-        'peminjam_sub_department',
-        'peminjam_role',
-        'peminjam_name',
-        'peminjam_username',
-        'peminjam_email',
-        'keperluan',
-        'note',
-        'created_by',
-    ];
+    /**
+     * $guarded, bukan $fillable - model ini punya banyak kolom status
+     * internal (staff/kasubbag/kabag/admin_approval_*, approval_status,
+     * peminjaman_status, approved_by, dst) yang diupdate dari beberapa method
+     * berbeda (approve/reject/conflictReject/updateWaktu/reschedule/return).
+     * Daftar $fillable eksplisit gampang ketinggalan pas nambah kolom baru -
+     * dan itu PERSIS yang kejadian sebelumnya (approve()/reject() dkk selama
+     * ini gagal diam-diam karena field-nya gak ada di $fillable). Aman karena
+     * semua mass-assignment di controller berasal dari array yang dirakit
+     * manual di kode, bukan dari $request->all() mentah-mentah.
+     */
+    protected $guarded = ['id'];
 
     protected $casts = [
         'waktu_mulai' => 'datetime',
