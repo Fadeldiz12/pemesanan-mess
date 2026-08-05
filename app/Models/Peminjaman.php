@@ -15,16 +15,6 @@ class Peminjaman extends Model
 
     protected $table = 'peminjaman';
 
-    /**
-     * Urutan rank jabatan, MENGIKUTI PENAMAAN ROLE DI app/Support/AccessMatrix.php
-     * (bukan lagi Staff/Kasubbag/Kabag/Admin buatan sendiri). 'User' adalah role
-     * pemohon standar (setara "Staff" versi lama) - dipisah dari role approver
-     * 'Staff Approval', biar tahap staff beneran butuh approver asli, bukan
-     * auto-lolos buat semua pemohon seperti sebelumnya. Dipakai buat auto-approve
-     * tahap yang levelnya setara/di bawah rank pemohon sendiri, dan buat aturan
-     * prioritas saat bentrok jadwal. 'Supir'/'Viewer' sengaja gak dimasukkan -
-     * gak relevan buat alur peminjaman mess.
-     */
     public const RANK_ORDER = [
         'User' => 1,
         'Staff Approval' => 2,
@@ -34,17 +24,8 @@ class Peminjaman extends Model
         'Super Admin' => 6,
     ];
 
-    /**
-     * $guarded, bukan $fillable - model ini punya banyak kolom status
-     * internal (staff/kasubbag/kabag/admin_approval_*, approval_status,
-     * peminjaman_status, approved_by, dst) yang diupdate dari beberapa method
-     * berbeda (approve/reject/conflictReject/updateWaktu/reschedule/return).
-     * Daftar $fillable eksplisit gampang ketinggalan pas nambah kolom baru -
-     * dan itu PERSIS yang kejadian sebelumnya (approve()/reject() dkk selama
-     * ini gagal diam-diam karena field-nya gak ada di $fillable). Aman karena
-     * semua mass-assignment di controller berasal dari array yang dirakit
-     * manual di kode, bukan dari $request->all() mentah-mentah.
-     */
+    private const STAGE_ORDER = ['staff', 'kasubbag', 'kabag', 'admin'];
+
     protected $guarded = ['id'];
 
     protected $casts = [
@@ -56,13 +37,13 @@ class Peminjaman extends Model
         'admin_approved_at' => 'datetime',
     ];
 
-    /**
-     * Auto-approve tahap yang levelnya setara/di bawah rank pemohon sendiri,
-     * biar Kasubag/Kabag yang ngajuin gak perlu approval diri sendiri.
-     */
     protected static function booted(): void
     {
         static::creating(function (Peminjaman $peminjaman) {
+            if (empty($peminjaman->peminjaman_code)) {
+                $peminjaman->peminjaman_code = self::generateCode();
+            }
+
             $level = $peminjaman->rankLevel();
 
             if ($level >= self::RANK_ORDER['Staff Approval']) {
@@ -75,13 +56,42 @@ class Peminjaman extends Model
                 $peminjaman->kabag_approval_status = 'Disetujui';
             }
 
-            $peminjaman->approval_status = match (true) {
-                $level < self::RANK_ORDER['Staff Approval'] => 'Menunggu Staff',
-                $level < self::RANK_ORDER['Kasubbag Approval'] => 'Menunggu Kasubbag',
-                $level < self::RANK_ORDER['Kabag Approval'] => 'Menunggu Kabag',
-                default => 'Menunggu Admin',
-            };
+            $peminjaman->settleApprovalStage();
         });
+    }
+
+    public function settleApprovalStage(): void
+    {
+        foreach (self::STAGE_ORDER as $stage) {
+            if ($this->{"{$stage}_approval_status"} !== 'Menunggu') {
+                continue;
+            }
+
+            if ($this->candidateApprovers($stage)->isNotEmpty()) {
+                $this->approval_status = 'Menunggu ' . ucfirst($stage);
+
+                return;
+            }
+
+            $this->{"{$stage}_approval_status"} = 'Disetujui';
+        }
+
+        $this->approval_status = 'Disetujui';
+        $this->peminjaman_status = 'Disetujui';
+    }
+
+    private static function generateCode(): string
+    {
+        $datePart = now()->format('Ymd');
+        $sequence = self::whereDate('created_at', now())->count() + 1;
+
+        do {
+            $candidate = sprintf('PMB-%s-%03d', $datePart, $sequence);
+            $taken = self::where('peminjaman_code', $candidate)->exists();
+            $sequence++;
+        } while ($taken);
+
+        return $candidate;
     }
 
     public function rankLevel(): int
@@ -89,21 +99,11 @@ class Peminjaman extends Model
         return self::RANK_ORDER[$this->peminjam_role] ?? self::RANK_ORDER['User'];
     }
 
-    /**
-     * Dipakai admin buat aturan prioritas: kalau $this & $other bentrok jadwal,
-     * true berarti $this yang menang walau diajukan belakangan.
-     */
     public function outranks(self $other): bool
     {
         return $this->rankLevel() > $other->rankLevel();
     }
 
-    /**
-     * Kandidat approver buat 1 tahap ('staff' / 'kasubbag' / 'kabag' / 'admin'):
-     * user dengan role yang sesuai DAN department/sub_department sama kayak
-     * pemohon. Kalau hasilnya kosong (jabatan lowong), Controller yang manggil
-     * ini yang memutuskan untuk skip ke tahap berikutnya.
-     */
     public function candidateApprovers(string $stage): Collection
     {
         $roleMap = [
@@ -179,10 +179,6 @@ class Peminjaman extends Model
         return $this->belongsTo(User::class, 'admin_approved_by');
     }
 
-    /**
-     * Scope: cari peminjaman lain yang bentrok jadwal di unit (bookable) yang sama.
-     * Dipakai admin buat deteksi bentrok sebelum approve tahap admin.
-     */
     public function scopeBentrok($query, string $bookableType, int $bookableId, $waktuMulai, $waktuSelesai, ?int $excludeId = null)
     {
         return $query->where('bookable_type', $bookableType)

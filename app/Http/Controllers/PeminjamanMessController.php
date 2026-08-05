@@ -2,24 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Bungalow;
 use App\Models\Kamar;
 use App\Models\Peminjaman;
-use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
-/**
- * Controller inti modul Peminjaman Mess & Bungalow.
- * Mengikuti README bagian 2 (alur peminjaman), bagian 5 (aturan hierarki),
- * dan bagian 6 (log). Export (bagian 7) ada di method exportExcel/exportPdf.
- */
 class PeminjamanMessController extends Controller
 {
     private const BOOKABLE_MAP = [
@@ -27,12 +19,6 @@ class PeminjamanMessController extends Controller
         'bungalow' => Bungalow::class,
     ];
 
-    /**
-     * Langkah 1 & 3: daftar peminjaman.
-     * - Staff/Kasubbag/Kabag (non-approver saat ini): melihat pengajuan miliknya sendiri.
-     * - Kasubbag/Kabag/Admin: juga bisa melihat antrean yang perlu di-approve pada
-     *   tahapnya masing-masing lewat filter `queue=1`.
-     */
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -66,11 +52,6 @@ class PeminjamanMessController extends Controller
         return response()->json($peminjaman->load(['bookable', 'rating', 'pemohon']));
     }
 
-    /**
-     * Langkah 1: pengajuan permintaan peminjaman.
-     * Status approval awal ditentukan otomatis oleh Peminjaman::booted()
-     * berdasarkan rank jabatan pemohon (auto-skip tahap setara/di bawahnya).
-     */
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -92,7 +73,6 @@ class PeminjamanMessController extends Controller
 
         $peminjaman = DB::transaction(function () use ($validated, $bookableClass, $unit, $user) {
             return Peminjaman::create([
-                'peminjaman_code' => 'PMJ-' . strtoupper(Str::random(10)),
                 'bookable_type' => $bookableClass,
                 'bookable_id' => $unit->id,
                 'waktu_mulai' => $validated['waktu_mulai'],
@@ -114,12 +94,6 @@ class PeminjamanMessController extends Controller
         return response()->json($peminjaman, 201);
     }
 
-    /**
-     * Langkah 2: approval berjenjang Staff -> Kasubbag -> Kabag -> Admin.
-     * $stage divalidasi terhadap approval_status berjalan supaya approver
-     * tidak bisa melompati tahap, dan terhadap role user supaya sesuai
-     * candidateApprovers() pada model (jabatan + department/sub_department sama).
-     */
     public function approve(Request $request, Peminjaman $peminjaman): JsonResponse
     {
         $user = $request->user();
@@ -135,10 +109,10 @@ class PeminjamanMessController extends Controller
             $peminjaman->{"{$stage}_approval_status"} = 'Disetujui';
             $peminjaman->{"{$stage}_approved_by"} = $user->id;
             $peminjaman->{"{$stage}_approved_at"} = now();
-            $peminjaman->approval_status = $this->nextApprovalLabel($stage);
 
-            if ($stage === 'admin') {
-                $peminjaman->peminjaman_status = 'Disetujui';
+            $peminjaman->settleApprovalStage();
+
+            if ($peminjaman->peminjaman_status === 'Disetujui') {
                 $peminjaman->approved_by = $user->id;
             }
 
@@ -150,11 +124,6 @@ class PeminjamanMessController extends Controller
         return response()->json($peminjaman->fresh());
     }
 
-    /**
-     * Penolakan pada tahap approval manapun (Staff/Kasubbag/Kabag/Admin).
-     * Ini penolakan permanen (bukan soft-reject) - lihat conflictReject()
-     * untuk soft-reject akibat bentrok jadwal (Langkah 4).
-     */
     public function reject(Request $request, Peminjaman $peminjaman): JsonResponse
     {
         $user = $request->user();
@@ -181,19 +150,11 @@ class PeminjamanMessController extends Controller
 
         ActivityLog::record($user, 'reject', 'peminjaman_mess', (string) $peminjaman->id, "Menolak tahap {$stage} untuk {$peminjaman->peminjaman_code}: {$validated['alasan']}");
 
-        // TODO: kirim notifikasi ke pemohon (in-app/email - lihat README poin 10.4).
-
         return response()->json($peminjaman->fresh());
     }
 
-    /**
-     * Langkah 4: deteksi bentrok jadwal. Dipanggil Admin sebelum approve
-     * tahap admin, untuk melihat daftar peminjaman lain yang bentrok pada
-     * unit yang sama beserta siapa yang seharusnya menang (aturan prioritas).
-     */
     public function conflicts(Request $request, Peminjaman $peminjaman): JsonResponse
     {
-        $this->authorizeAction($request, 'approve'); // conflicts()
 
         $others = Peminjaman::bentrok(
             $peminjaman->bookable_type,
@@ -216,14 +177,8 @@ class PeminjamanMessController extends Controller
         ]);
     }
 
-    /**
-     * Langkah 4: soft-reject akibat bentrok jadwal. Bukan pembatalan
-     * permanen - pemohon diminta mengajukan ulang di waktu lain
-     * (lihat README poin 10.3 terkait alur reschedule).
-     */
     public function conflictReject(Request $request, Peminjaman $peminjaman): JsonResponse
     {
-        $this->authorizeAction($request, 'approve'); // conflictReject()
 
         $validated = $request->validate([
             'alasan' => ['nullable', 'string', 'max:500'],
@@ -239,17 +194,9 @@ class PeminjamanMessController extends Controller
 
         ActivityLog::record($request->user(), 'soft_reject', 'peminjaman_mess', (string) $peminjaman->id, "Soft-reject (bentrok jadwal) untuk {$peminjaman->peminjaman_code}");
 
-        // TODO: kirim notifikasi ke pemohon agar mengajukan ulang di waktu lain.
-
         return response()->json($peminjaman->fresh());
     }
 
-    /**
-     * Langkah 4 (lanjutan): pemohon mengajukan waktu baru setelah soft-reject
-     * ("Perlu Reschedule"). Tahap Staff/Kasubbag/Kabag yang sudah Disetujui
-     * TETAP sah - cuma tahap Admin yang direset ke Menunggu, sesuai kesepakatan
-     * sebelumnya (gak perlu approval ulang dari awal).
-     */
     public function reschedule(Request $request, Peminjaman $peminjaman): JsonResponse
     {
         $user = $request->user();
@@ -297,13 +244,8 @@ class PeminjamanMessController extends Controller
         return response()->json($peminjaman->fresh());
     }
 
-    /**
-     * Langkah 3: wewenang khusus Admin mengedit waktu peminjaman sebelum
-     * status akhir ditetapkan (resolusi bentrok / penyesuaian operasional).
-     */
     public function updateWaktu(Request $request, Peminjaman $peminjaman): JsonResponse
     {
-        $this->authorizeAction($request, 'update'); // updateWaktu()
 
         if (in_array($peminjaman->peminjaman_status, ['Ditolak', 'Selesai'], true)) {
             return response()->json(['message' => 'Waktu peminjaman dengan status ini tidak dapat diubah.'], 422);
@@ -333,9 +275,6 @@ class PeminjamanMessController extends Controller
         return response()->json($peminjaman->fresh());
     }
 
-    /**
-     * Pemohon membatalkan pengajuannya sendiri selama belum final.
-     */
     public function destroy(Request $request, Peminjaman $peminjaman): JsonResponse
     {
         $user = $request->user();
@@ -355,15 +294,8 @@ class PeminjamanMessController extends Controller
         return response()->json(['message' => 'Pengajuan berhasil dibatalkan.']);
     }
 
-    /**
-     * Bagian 7: export data peminjaman ke Excel.
-     * Mengikuti pola export yang sudah dipakai di sistem peminjaman
-     * kendaraan (Laravel Excel) - class App\Exports\PeminjamanMessExport
-     * perlu dibuat terpisah dan menerima query builder/filter yang sama.
-     */
     public function exportExcel(Request $request)
     {
-        $this->authorizeAction($request, 'export'); // exportExcel()
 
         $filters = $request->validate([
             'date_from' => ['nullable', 'date'],
@@ -381,12 +313,8 @@ class PeminjamanMessController extends Controller
         );
     }
 
-    /**
-     * Bagian 7: export data peminjaman ke PDF (dompdf), filter sama seperti Excel.
-     */
     public function exportPdf(Request $request)
     {
-        $this->authorizeAction($request, 'export'); // exportPdf()
 
         $filters = $request->validate([
             'date_from' => ['nullable', 'date'],
@@ -405,10 +333,6 @@ class PeminjamanMessController extends Controller
         return $pdf->download('peminjaman-mess-' . now()->format('Ymd-His') . '.pdf');
     }
 
-    // ------------------------------------------------------------------
-    // Helpers
-    // ------------------------------------------------------------------
-
     private function buildExportQuery(array $filters)
     {
         return Peminjaman::query()
@@ -421,9 +345,6 @@ class PeminjamanMessController extends Controller
             ->orderByDesc('waktu_mulai');
     }
 
-    /**
-     * Unit (Kamar/Bungalow) harus aktif/tersedia dan berstatus aktif di master data.
-     */
     private function assertUnitAvailable(Kamar|Bungalow $unit): void
     {
         if ($unit instanceof Kamar && $unit->status_ketersediaan !== 'Tersedia') {
@@ -435,9 +356,6 @@ class PeminjamanMessController extends Controller
         }
     }
 
-    /**
-     * Bagian 5: cek `minimum_jabatan` unit terhadap rank jabatan pemohon.
-     */
     private function assertJabatanEligible(Kamar|Bungalow $unit, string $peminjamRole): void
     {
         $minLevel = Peminjaman::RANK_ORDER[$unit->minimum_jabatan] ?? Peminjaman::RANK_ORDER['User'];
@@ -450,10 +368,6 @@ class PeminjamanMessController extends Controller
         }
     }
 
-    /**
-     * Menentukan tahap approval yang sedang aktif berdasarkan approval_status
-     * berjenjang. Mengembalikan null kalau sudah final (disetujui/ditolak/dsb).
-     */
     private function currentStage(Peminjaman $peminjaman): ?string
     {
         return match ($peminjaman->approval_status) {
@@ -465,45 +379,13 @@ class PeminjamanMessController extends Controller
         };
     }
 
-    private function nextApprovalLabel(string $currentStage): string
-    {
-        return match ($currentStage) {
-            'staff' => 'Menunggu Kasubbag',
-            'kasubbag' => 'Menunggu Kabag',
-            'kabag' => 'Menunggu Admin',
-            'admin' => 'Disetujui',
-            default => 'Disetujui',
-        };
-    }
-
-    /**
-     * Approver harus punya role yang sesuai tahap DAN berada di
-     * department/sub_department yang sama dengan pemohon (mengikuti
-     * candidateApprovers() pada model), kecuali Admin (approver final,
-     * lintas department).
-     */
     private function assertIsApproverForStage($user, Peminjaman $peminjaman, string $stage): void
     {
-        $roleMap = ['staff' => 'Staff Approval', 'kasubbag' => 'Kasubbag Approval', 'kabag' => 'Kabag Approval', 'admin' => 'Admin'];
-        $expectedRole = $roleMap[$stage];
+        $candidateIds = $peminjaman->candidateApprovers($stage)->pluck('id');
 
-        if ($user->role !== $expectedRole) {
-            abort(403, "Hanya {$expectedRole} yang dapat memproses tahap ini.");
-        }
-
-        if ($stage === 'kasubbag' && $user->sub_department !== $peminjaman->peminjam_sub_department) {
-            abort(403, 'Anda hanya dapat memproses pengajuan dari sub-departemen Anda sendiri.');
-        }
-
-        if ($stage === 'kabag' && $user->department !== $peminjaman->peminjam_department) {
-            abort(403, 'Anda hanya dapat memproses pengajuan dari departemen Anda sendiri.');
-        }
+        abort_unless($candidateIds->contains($user->id), 403, 'Anda tidak berwenang memproses tahap ini.');
     }
 
-    /**
-     * Batasi query index() ke antrean approval milik user (sesuai role &
-     * department/sub_department), dipakai untuk tab "Perlu Persetujuan Saya".
-     */
     private function scopeApprovalQueue($query, $user)
     {
         return match ($user->role) {
@@ -523,33 +405,16 @@ class PeminjamanMessController extends Controller
             return;
         }
 
-        // Approver terkait tahap tertentu boleh melihat detail untuk memutuskan.
         $stage = $this->currentStage($peminjaman);
         if ($stage) {
             try {
                 $this->assertIsApproverForStage($user, $peminjaman, $stage);
                 return;
             } catch (\Throwable) {
-                // fallthrough ke abort di bawah
+
             }
         }
 
         abort(403, 'Anda tidak berhak melihat peminjaman ini.');
-    }
-
-    /**
-     * Gate lewat AccessMatrix::can() (menu_key 'peminjaman-mess'), untuk aksi
-     * yang bukan approve/reject per tahap (itu tetap lewat
-     * assertIsApproverForStage() karena butuh cocok department/sub_department,
-     * bukan sekadar cek role generik). Dipakai untuk conflicts/conflictReject
-     * ('approve'), updateWaktu ('update'), dan exportExcel/exportPdf ('export').
-     */
-    private function authorizeAction(Request $request, string $action): void
-    {
-        abort_unless(
-            AccessMatrix::can('peminjaman-mess', $action, $request->user()),
-            403,
-            "Anda tidak memiliki akses '{$action}' pada peminjaman."
-        );
     }
 }
