@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\Bungalow;
 use App\Models\Kamar;
 use App\Models\Peminjaman;
+use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -155,6 +156,7 @@ class PeminjamanMessController extends Controller
 
     public function conflicts(Request $request, Peminjaman $peminjaman): JsonResponse
     {
+        $this->authorizeAction($request, 'read');
 
         $others = Peminjaman::bentrok(
             $peminjaman->bookable_type,
@@ -179,6 +181,7 @@ class PeminjamanMessController extends Controller
 
     public function conflictReject(Request $request, Peminjaman $peminjaman): JsonResponse
     {
+        $this->authorizeAction($request, 'update');
 
         $validated = $request->validate([
             'alasan' => ['nullable', 'string', 'max:500'],
@@ -246,6 +249,7 @@ class PeminjamanMessController extends Controller
 
     public function updateWaktu(Request $request, Peminjaman $peminjaman): JsonResponse
     {
+        $this->authorizeAction($request, 'update');
 
         if (in_array($peminjaman->peminjaman_status, ['Ditolak', 'Selesai'], true)) {
             return response()->json(['message' => 'Waktu peminjaman dengan status ini tidak dapat diubah.'], 422);
@@ -296,6 +300,7 @@ class PeminjamanMessController extends Controller
 
     public function exportExcel(Request $request)
     {
+        $this->authorizeAction($request, 'read');
 
         $filters = $request->validate([
             'date_from' => ['nullable', 'date'],
@@ -315,6 +320,7 @@ class PeminjamanMessController extends Controller
 
     public function exportPdf(Request $request)
     {
+        $this->authorizeAction($request, 'read');
 
         $filters = $request->validate([
             'date_from' => ['nullable', 'date'],
@@ -416,5 +422,14 @@ class PeminjamanMessController extends Controller
         }
 
         abort(403, 'Anda tidak berhak melihat peminjaman ini.');
+    }
+
+    private function authorizeAction(Request $request, string $action): void
+    {
+        abort_unless(
+            AccessMatrix::can('peminjaman-mess', $action, $request->user()),
+            403,
+            "Anda tidak memiliki akses '{$action}' pada peminjaman."
+        );
     }
 }
