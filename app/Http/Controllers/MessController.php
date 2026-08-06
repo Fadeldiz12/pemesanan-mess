@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 
 /**
  * CRUD Mess (bagian 3 README).
@@ -19,7 +20,7 @@ use Illuminate\Validation\Rule;
  */
 class MessController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): View|JsonResponse
     {
         $this->authorizeAction($request, 'read');
 
@@ -31,14 +32,22 @@ class MessController extends Controller
             ->orderBy('nama')
             ->paginate(15);
 
-        return response()->json($messes);
+        if ($request->wantsJson()) {
+            return response()->json($messes);
+        }
+
+        return view('messes.index', compact('messes'));
     }
 
-    public function show(Mess $mess): JsonResponse
+    public function show(Request $request, Mess $mess): View|JsonResponse
     {
         $mess->load(['kamars' => fn ($q) => $q->orderBy('nama_kamar')]);
 
-        return response()->json($mess);
+        if ($request->wantsJson()) {
+            return response()->json($mess);
+        }
+
+        return view('messes.show', compact('mess'));
     }
 
     public function store(Request $request): JsonResponse|RedirectResponse
@@ -61,10 +70,14 @@ class MessController extends Controller
 
         ActivityLog::record($request->user(), 'create', 'mess', (string) $mess->id, "Menambahkan Mess: {$mess->nama}");
 
-        return response()->json($mess, 201);
+        if ($request->wantsJson()) {
+            return response()->json($mess, 201);
+        }
+
+        return redirect()->route('messes.index')->with('success', 'Mess berhasil ditambahkan.');
     }
 
-    public function update(Request $request, Mess $mess): JsonResponse
+    public function update(Request $request, Mess $mess): JsonResponse|RedirectResponse
     {
         $this->authorizeAction($request, 'update');
 
@@ -87,10 +100,14 @@ class MessController extends Controller
 
         ActivityLog::record($request->user(), 'update', 'mess', (string) $mess->id, "Memperbarui Mess: {$mess->nama}");
 
-        return response()->json($mess);
+        if ($request->wantsJson()) {
+            return response()->json($mess);
+        }
+
+        return redirect()->route('messes.index')->with('success', 'Mess berhasil diperbarui.');
     }
 
-    public function destroy(Request $request, Mess $mess): JsonResponse
+    public function destroy(Request $request, Mess $mess): JsonResponse|RedirectResponse
     {
         $this->authorizeAction($request, 'delete');
 
@@ -100,16 +117,24 @@ class MessController extends Controller
             ->exists();
 
         if ($hasActiveBooking) {
-            return response()->json([
-                'message' => 'Mess tidak bisa dihapus karena masih memiliki kamar dengan peminjaman aktif.',
-            ], 422);
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'message' => 'Mess tidak bisa dihapus karena masih memiliki kamar dengan peminjaman aktif.',
+                ], 422);
+            }
+
+            return redirect()->back()->with('error', 'Mess tidak bisa dihapus karena masih memiliki kamar dengan peminjaman aktif.');
         }
 
         $mess->delete();
 
         ActivityLog::record($request->user(), 'delete', 'mess', (string) $mess->id, "Menghapus Mess: {$mess->nama}");
 
-        return response()->json(['message' => 'Mess berhasil dihapus.']);
+        if ($request->wantsJson()) {
+            return response()->json(['message' => 'Mess berhasil dihapus.']);
+        }
+
+        return redirect()->route('messes.index')->with('success', 'Mess berhasil dihapus.');
     }
 
     /**

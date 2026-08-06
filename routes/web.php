@@ -1,50 +1,100 @@
 <?php
 
-use App\Http\Controllers\MessBooking\BungalowController;
-use App\Http\Controllers\MessBooking\KamarController;
-use App\Http\Controllers\MessBooking\MessController;
-use App\Http\Controllers\MessBooking\PeminjamanMessController;
-use App\Http\Controllers\MessBooking\RatingMessController;
+use App\Http\Controllers\ApprovalController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\BungalowController;
+use App\Http\Controllers\KamarController;
+use App\Http\Controllers\MessController;
+use App\Http\Controllers\RatingMessController;
+use App\Http\Controllers\PeminjamanMessController;
+use App\Http\Controllers\SubDepartmentController;
 use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| Routes Autentikasi (Guest & Auth)
+|--------------------------------------------------------------------------
+*/
+
+// Redirect halaman utama ke daftar peminjaman mess
+Route::redirect('/', '/peminjaman-mess');
+
+// Route Login & Logout
+Route::get('/login', [AuthController::class, 'showLogin'])->name('login')->middleware('guest');
+Route::post('/login', [AuthController::class, 'login'])->name('login.process')->middleware('guest');
+Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
+
+// Rute untuk melihat UI Ubah Password (Testing View)
+Route::get('/password/edit', function () {
+    return view('auth.passwords.edit');
+})->name('password.edit');
+
+Route::get('/dashboard', function () {
+    return view('dashboard.index');
+})->name('dashboard');
 
 /*
 |--------------------------------------------------------------------------
 | Routes Modul Peminjaman Mess & Bungalow
 |--------------------------------------------------------------------------
-| Import file ini di routes/web.php atau routes/api.php, contoh:
-| Route::middleware(['auth'])->group(base_path('routes/mess-booking.php'));
 */
 
-Route::middleware(['auth'])->prefix('mess-booking')->name('mess-booking.')->group(function () {
+Route::middleware(['auth'])->group(function () {
 
-    // Master data Mess & Kamar (bagian 3)
-    Route::apiResource('messes', MessController::class);
-    Route::apiResource('messes.kamars', KamarController::class)->shallow();
+    // Rute sementara untuk melihat UI Master Data Mess
+    // Route::get('/messes', function () {
+    //     return view('messes.index');
+    // })->name('messes.index');
+    
+    // Route::get('/messes/create', function () {
+    //     return view('messes.create');
+    // })->name('messes.create');
 
-    // Master data Bungalow (bagian 4)
-    Route::apiResource('bungalows', BungalowController::class);
+    // Katalog & Halaman Pemesanan Utama
+    Route::get('/peminjaman-mess', [PeminjamanMessController::class, 'index'])->name('peminjaman-mess.index');
+    Route::get('/peminjaman-mess/create', [PeminjamanMessController::class, 'create'])->name('peminjaman.create');
+    Route::post('/peminjaman-mess', [PeminjamanMessController::class, 'store'])->name('peminjaman.store');
 
-    // Alur peminjaman (bagian 2)
-    Route::get('peminjaman', [PeminjamanMessController::class, 'index'])->name('peminjaman.index');
-    Route::post('peminjaman', [PeminjamanMessController::class, 'store'])->name('peminjaman.store');
-    Route::get('peminjaman/{peminjaman}', [PeminjamanMessController::class, 'show'])->name('peminjaman.show');
-    Route::delete('peminjaman/{peminjaman}', [PeminjamanMessController::class, 'destroy'])->name('peminjaman.destroy');
+    // Detail & Pembatalan Peminjaman
+    Route::get('/peminjaman-mess/{peminjaman}', [PeminjamanMessController::class, 'show'])->name('peminjaman.show');
+    Route::delete('/peminjaman-mess/{peminjaman}', [PeminjamanMessController::class, 'destroy'])->name('peminjaman.destroy');
 
-    Route::post('peminjaman/{peminjaman}/approve', [PeminjamanMessController::class, 'approve'])->name('peminjaman.approve');
-    Route::post('peminjaman/{peminjaman}/reject', [PeminjamanMessController::class, 'reject'])->name('peminjaman.reject');
+    // Approval Berjenjang (PeminjamanMessController)
+    Route::post('/peminjaman-mess/{peminjaman}/approve', [PeminjamanMessController::class, 'approve'])->name('peminjaman.approve');
+    Route::post('/peminjaman-mess/{peminjaman}/reject', [PeminjamanMessController::class, 'reject'])->name('peminjaman.reject');
 
-    // Bentrok jadwal & prioritas (Admin) - bagian 2 Langkah 4
-    Route::get('peminjaman/{peminjaman}/conflicts', [PeminjamanMessController::class, 'conflicts'])->name('peminjaman.conflicts');
-    Route::post('peminjaman/{peminjaman}/conflict-reject', [PeminjamanMessController::class, 'conflictReject'])->name('peminjaman.conflict-reject');
+    // Halaman List & Aksi Approval Dedicated (ApprovalController)
+    Route::get('/approval', [ApprovalController::class, 'index'])->name('approval.index');
+    Route::post('/approval/{borrowing}/approve-staff', [ApprovalController::class, 'approveStaff'])->name('approval.approve-staff');
+    Route::post('/approval/{borrowing}/reject-staff', [ApprovalController::class, 'rejectStaff'])->name('approval.reject-staff');
+    Route::post('/approval/{borrowing}/approve-kasubbag', [ApprovalController::class, 'approveKasubbag'])->name('approval.approve-kasubbag');
+    Route::post('/approval/{borrowing}/reject-kasubbag', [ApprovalController::class, 'rejectKasubbag'])->name('approval.reject-kasubbag');
+    Route::post('/approval/{borrowing}/approve-kabag', [ApprovalController::class, 'approveKabag'])->name('approval.approve-kabag');
+    Route::post('/approval/{borrowing}/reject-kabag', [ApprovalController::class, 'rejectKabag'])->name('approval.reject-kabag');
 
-    // Edit waktu oleh Admin - bagian 2 Langkah 3
-    Route::put('peminjaman/{peminjaman}/waktu', [PeminjamanMessController::class, 'updateWaktu'])->name('peminjaman.update-waktu');
+    // Reschedule & Penanganan Bentrok Jadwal (Admin)
+    Route::get('/peminjaman-mess/{peminjaman}/conflicts', [PeminjamanMessController::class, 'conflicts'])->name('peminjaman.conflicts');
+    Route::post('/peminjaman-mess/{peminjaman}/conflict-reject', [PeminjamanMessController::class, 'conflictReject'])->name('peminjaman.conflict-reject');
+    Route::post('/peminjaman-mess/{peminjaman}/reschedule', [PeminjamanMessController::class, 'reschedule'])->name('peminjaman.reschedule');
 
-    // Export - bagian 7
-    Route::get('peminjaman-export/excel', [PeminjamanMessController::class, 'exportExcel'])->name('peminjaman.export-excel');
-    Route::get('peminjaman-export/pdf', [PeminjamanMessController::class, 'exportPdf'])->name('peminjaman.export-pdf');
+    // Edit Waktu Operasional oleh Admin
+    Route::put('/peminjaman-mess/{peminjaman}/waktu', [PeminjamanMessController::class, 'updateWaktu'])->name('peminjaman.update-waktu');
 
-    // Rating - bagian 8
-    Route::post('peminjaman/{peminjaman}/rating', [RatingMessController::class, 'store'])->name('rating.store');
-    Route::get('units/{unitType}/{unitId}/ratings', [RatingMessController::class, 'forUnit'])->name('rating.for-unit');
+    // Master Data CRUD (Mess, Kamar, Bungalow, Department, SubDepartment)
+    Route::resource('messes', MessController::class);
+    Route::resource('messes.kamars', KamarController::class)->shallow();
+    Route::resource('bungalows', BungalowController::class);
+    
+    // Master Data Bagian & Subbagian
+    Route::resource('departments', DepartmentController::class);
+    Route::resource('sub-departments', SubDepartmentController::class);
+
+    // Export Data (Excel / PDF)
+    Route::get('/peminjaman-mess-export/excel', [PeminjamanMessController::class, 'exportExcel'])->name('peminjaman.export-excel');
+    Route::get('/peminjaman-mess-export/pdf', [PeminjamanMessController::class, 'exportPdf'])->name('peminjaman.export-pdf');
+
+    // Rating & Ulasan
+    Route::post('/peminjaman-mess/{peminjaman}/rating', [RatingMessController::class, 'store'])->name('rating.store');
+    Route::get('/units/{unitType}/{unitId}/ratings', [RatingMessController::class, 'forUnit'])->name('rating.for-unit');
 });

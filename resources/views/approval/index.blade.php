@@ -1,181 +1,267 @@
-@extends('layouts.app', ['title' => 'Approval Peminjaman'])
+@extends('layouts.app')
+
+@section('title', 'Approval Peminjaman Mess - PTPN 1')
+@section('header_title', 'Approval Peminjaman')
 
 @section('content')
-
 @php
-    $canApprove = \App\Support\AccessMatrix::can('approval', 'approve');
+    // Mendapatkan role pengguna saat ini (misal: 'Staff Approval', 'Kasubbag Approval', atau 'Kabag Approval')
+    $roleSaya = auth()->user()->role ?? null;
 @endphp
 
-<div class="table-responsive">
-    <table class="table mb-0 text-nowrap table-hover table-accordion">
-        <thead class="table-light border-light">
-            <tr>
-                <th>Aksi</th>
-                <th>Kode</th>
-                <th>Nama</th>
-                <th>Tujuan</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-        @foreach($borrowings as $b)
-            @php
-                $level = str_contains($b->approval_status,'Staff') ? 'staff'
-                    : (str_contains($b->approval_status,'Kasubbag') ? 'kasubbag'
-                    : (str_contains($b->approval_status,'Kabag') ? 'kabag' : null));
-            @endphp
-            <tr>
-                <td class="action-data">
-                    <div class="d-flex gap-2 justify-content-center">
-                        @if($level && $canApprove)
-                            <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#detailModal{{ $b->id }}">
-                                <i class="ti ti-check me-1"></i>Setujui
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal{{ $b->id }}">
-                                <i class="ti ti-x me-1"></i>Tolak
-                            </button>
-                        @endif
-                    </div>
-                </td>
-                <td class="toggle-cell" data-label="Kode">
-                    <div class="d-flex align-items-center">
-                        <span class="fw-bold text-primary">{{ $b->borrowing_code }}</span>
-                        <i class="ti ti-chevron-down toggle-icon d-md-none ms-2"></i>
-                    </div>
-                </td>
-                <td data-label="Nama">{{ $b->borrower_name }}</td>
-                <td class="detail-data" data-label="Tujuan" id="table-dest-{{ $b->id }}">{{ $b->destination }}</td>
-                <td class="detail-data" data-label="Status">{{ $b->approval_status }}</td>
-            </tr>
-        @endforeach
-        </tbody>
-    </table>
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white py-3">
+        <h2 class="fs-5 mb-0 fw-semibold">Daftar Menunggu Approval ({{ $roleSaya ?? '-' }})</h2>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table mb-0 text-nowrap table-hover table-accordion align-middle">
+            <thead class="table-light border-light">
+                <tr>
+                    <th class="text-center" style="width: 150px;">Aksi</th>
+                    <th>Kode</th>
+                    <th>Pemohon</th>
+                    <th>Unit Penginapan</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+            @forelse($borrowings as $b)
+                @php
+                    // Menentukan level tahapan approval berdasarkan status saat ini
+                    $level = match($b->approval_status) {
+                        'Menunggu Staff' => 'staff',
+                        'Menunggu Kasubbag' => 'kasubbag',
+                        'Menunggu Kabag' => 'kabag',
+                        default => null
+                    };
+                    
+                    // Menentukan apakah user login berhak melakukan approval pada baris ini
+                    $canAct = $level && (
+                        ($roleSaya === 'Staff Approval' && $level === 'staff') ||
+                        ($roleSaya === 'Kasubbag Approval' && $level === 'kasubbag') ||
+                        ($roleSaya === 'Kabag Approval' && $level === 'kabag')
+                    );
+                @endphp
+                <tr>
+                    <td class="action-data">
+                        <div class="d-flex gap-2 justify-content-center">
+                            @if($canAct)
+                                <button type="button" class="btn btn-sm btn-success shadow-sm" data-bs-toggle="modal" data-bs-target="#detailModal{{ $b->id }}">
+                                    <i class="ti ti-check me-1"></i>Setujui
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger shadow-sm" data-bs-toggle="modal" data-bs-target="#rejectModal{{ $b->id }}">
+                                    <i class="ti ti-x me-1"></i>Tolak
+                                </button>
+                            @else
+                                <button type="button" class="btn btn-sm btn-light shadow-sm" data-bs-toggle="modal" data-bs-target="#detailModal{{ $b->id }}">
+                                    <i class="ti ti-eye me-1"></i>Detail
+                                </button>
+                            @endif
+                        </div>
+                    </td>
+                    <td class="toggle-cell" data-label="Kode">
+                        <div class="d-flex align-items-center">
+                            <span class="fw-bold text-primary">{{ $b->peminjaman_code }}</span>
+                            <i class="ti ti-chevron-down toggle-icon d-md-none ms-2"></i>
+                        </div>
+                    </td>
+                    <td data-label="Pemohon">
+                        {{ $b->peminjam_name }} <br>
+                        <span class="text-secondary small">{{ $b->peminjam_department }}</span>
+                    </td>
+                    <td class="detail-data" data-label="Unit Penginapan" id="table-unit-{{ $b->id }}">
+                        <span class="badge bg-info-subtle text-info border border-info-subtle">{{ class_basename($b->bookable_type) }}</span>
+                        {{ $b->bookable->name ?? $b->bookable->nama ?? $b->bookable->nomor ?? 'Unit Terpilih' }}
+                    </td>
+                    <td class="detail-data" data-label="Status">
+                        <span class="badge bg-warning text-dark">{{ $b->approval_status }}</span>
+                    </td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="5" class="text-secondary text-center py-5">
+                        <div class="mb-2"><i class="ti ti-inbox fs-1 text-muted"></i></div>
+                        Tidak ada pengajuan yang sedang menunggu approval Anda.
+                    </td>
+                </tr>
+            @endforelse
+            </tbody>
+        </table>
+    </div>
+
+    @if(method_exists($borrowings, 'links') && $borrowings->hasPages())
+        <div class="card-footer bg-white py-3 border-top">
+            {{ $borrowings->links() }}
+        </div>
+    @endif
 </div>
 
-<div class="mt-3">
-    {{ $borrowings->links() }}
-</div>
+{{-- Render Modals --}}
 @foreach($borrowings as $b)
     @php
-        $level = str_contains($b->approval_status,'Staff') ? 'staff'
-            : (str_contains($b->approval_status,'Kasubbag') ? 'kasubbag'
-            : (str_contains($b->approval_status,'Kabag') ? 'kabag' : null));
+        $level = match($b->approval_status) {
+            'Menunggu Staff' => 'staff',
+            'Menunggu Kasubbag' => 'kasubbag',
+            'Menunggu Kabag' => 'kabag',
+            default => null
+        };
+        
+        $canAct = $level && (
+            ($roleSaya === 'Staff Approval' && $level === 'staff') ||
+            ($roleSaya === 'Kasubbag Approval' && $level === 'kasubbag') ||
+            ($roleSaya === 'Kabag Approval' && $level === 'kabag')
+        );
     @endphp
 
-    @if($level && $canApprove)
-        <div class="modal fade" id="detailModal{{ $b->id }}" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Detail Pengajuan: {{ $b->borrowing_code }}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body text-wrap text-start">
-                        <div class="row">
-                            <div class="col-md-6 mb-3"><strong>Nama Pemohon:</strong><br>{{ $b->borrower_name }}</div>
-                            <div class="col-md-6 mb-3"><strong>Bagian/Subbagian:</strong><br>{{ $b->borrower_department }} - {{ $b->borrower_sub_department }}</div>
-                            
-                            <div class="col-md-6 mb-3"><strong>Tujuan:</strong><br><span id="detail-dest-{{ $b->id }}">{{ $b->destination }}</span></div>
-                            <div class="col-md-6 mb-3"><strong>Keperluan:</strong><br><span id="detail-purpose-{{ $b->id }}">{{ $b->purpose }}</span></div>
-                            <div class="col-md-6 mb-3"><strong>Jumlah Penumpang:</strong><br><span id="detail-passenger-{{ $b->id }}">{{ $b->passenger_count }}</span> Orang</div>
-                            
-                            <div class="col-md-6 mb-3">
-                                <strong>Waktu Berangkat:</strong><br>
-                                <span id="detail-departure-{{ $b->id }}">{{ \Carbon\Carbon::parse($b->borrow_date)->format('d/m/Y') }} - {{ \Carbon\Carbon::parse($b->departure_time)->format('H:i') }}</span>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <strong>Rencana Kembali:</strong><br>
-                                <span id="detail-return-{{ $b->id }}">{{ \Carbon\Carbon::parse($b->planned_until_date)->format('d/m/Y') }} - {{ \Carbon\Carbon::parse($b->planned_until_time)->format('H:i') }}</span>
+    {{-- 1. Modal Detail & Tombol Eksekusi --}}
+    <div class="modal fade" id="detailModal{{ $b->id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Detail Pengajuan: <span class="text-primary">{{ $b->peminjaman_code }}</span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-start">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="small text-muted d-block mb-1">Nama Pemohon</label>
+                            <div class="fw-medium">{{ $b->peminjam_name }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted d-block mb-1">Bagian/Subbagian</label>
+                            <div class="fw-medium">
+                                {{ $b->peminjam_department }} 
+                                @if($b->peminjam_sub_department) - {{ $b->peminjam_sub_department }} @endif
                             </div>
                         </div>
-                    </div>
-                    <div class="modal-footer d-flex justify-content-between">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kembali</button>
-                        <div>
-                            <button type="button" class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#editModal{{ $b->id }}">
-                                <i class="ti ti-pencil me-1"></i>Edit Data
-                            </button>
-                            <form method="POST" action="{{ route('approval.'.$level.'.approve',$b) }}" class="d-inline">
-                                @csrf
-                                <button type="submit" class="btn btn-success"><i class="ti ti-check me-1"></i>Setujui Pengajuan</button>
-                            </form>
+                        <div class="col-md-6">
+                            <label class="small text-muted d-block mb-1">Unit Penginapan</label>
+                            <div class="fw-medium" id="detail-unit-{{ $b->id }}">
+                                {{ class_basename($b->bookable_type) }} - {{ $b->bookable->name ?? $b->bookable->nama ?? $b->bookable->nomor ?? 'Unit Terpilih' }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted d-block mb-1">Keperluan</label>
+                            <div class="fw-medium text-wrap" id="detail-purpose-{{ $b->id }}">{{ $b->keperluan }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted d-block mb-1">Waktu Check-in</label>
+                            <div class="fw-medium text-success" id="detail-departure-{{ $b->id }}">
+                                {{ \Carbon\Carbon::parse($b->waktu_mulai)->format('d F Y, H:i') }} WIB
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted d-block mb-1">Waktu Check-out</label>
+                            <div class="fw-medium text-danger" id="detail-return-{{ $b->id }}">
+                                {{ \Carbon\Carbon::parse($b->waktu_selesai)->format('d F Y, H:i') }} WIB
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <div class="modal fade" id="editModal{{ $b->id }}" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Edit Pengajuan: {{ $b->borrowing_code }}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
+                <div class="modal-footer bg-light d-flex justify-content-between">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
                     
-                    <form class="ajax-edit-form" data-id="{{ $b->id }}" action="{{ route('borrowings.updateByApprover', $b->id) }}" method="POST">
-                        @csrf
-                        @method('PUT')
-                        <div class="modal-body text-start">
-                            <div class="row">
-                                <div class="col-md-3 mb-3"><label class="form-label">Tanggal Pinjam</label><input type="date" name="borrow_date" class="form-control" value="{{ \Carbon\Carbon::parse($b->borrow_date)->format('Y-m-d') }}" required></div>
-                                <div class="col-md-3 mb-3"><label class="form-label">Jam Berangkat</label><input type="time" name="departure_time" class="form-control" value="{{ \Carbon\Carbon::parse($b->departure_time)->format('H:i') }}" required></div>
-                                <div class="col-md-3 mb-3"><label class="form-label">Sampai Tanggal</label><input type="date" name="planned_until_date" class="form-control" value="{{ \Carbon\Carbon::parse($b->planned_until_date)->format('Y-m-d') }}" required></div>
-                                <div class="col-md-3 mb-3"><label class="form-label">Sampai Jam</label><input type="time" name="planned_until_time" class="form-control" value="{{ \Carbon\Carbon::parse($b->planned_until_time)->format('H:i') }}" required></div>
-                                <div class="col-md-4 mb-3"><label class="form-label">Jumlah Penumpang</label><input type="number" min="1" name="passenger_count" class="form-control" value="{{ $b->passenger_count }}" required></div>
-                                <div class="col-md-8 mb-3"><label class="form-label">Tujuan</label><input type="text" name="destination" class="form-control" value="{{ $b->destination }}" required></div>
-                                <div class="col-md-12 mb-3"><label class="form-label">Keperluan</label><input type="text" name="purpose" class="form-control" value="{{ $b->purpose }}" required></div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#detailModal{{ $b->id }}">Kembali</button>
-                            <button type="submit" class="btn btn-primary btn-save"><i class="ti ti-device-floppy me-1"></i>Simpan</button>
-                        </div>
-                    </form>
+                    @if($canAct)
+                    <div>
+                        <button type="button" class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#editModal{{ $b->id }}">
+                            <i class="ti ti-clock-edit me-1"></i>Edit Waktu
+                        </button>
+                        {{-- Menggunakan route ApprovalController yang sudah didaftarkan di web.php (approval.approve-staff, dll) --}}
+                        <form method="POST" action="{{ route('approval.approve-'.$level, $b->id) }}" class="d-inline">
+                            @csrf
+                            <button type="submit" class="btn btn-success">
+                                <i class="ti ti-check me-1"></i>Setujui Pengajuan
+                            </button>
+                        </form>
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>
+    </div>
 
-        {{-- 3. MODAL REJECT --}}
-        <div class="modal fade" id="rejectModal{{ $b->id }}" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog">
-                <form method="POST" action="{{ route('approval.'.$level.'.reject',$b) }}">
+    @if($canAct)
+    {{-- 2. Modal Edit Jadwal Sebelum Approve --}}
+    <div class="modal fade" id="editModal{{ $b->id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Waktu Peminjaman: {{ $b->peminjaman_code }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                
+                {{-- Endpoint ini akan melempar ke PeminjamanMessController::updateWaktu --}}
+                <form class="ajax-edit-form" data-id="{{ $b->id }}" action="{{ route('peminjaman.update-waktu', $b->id) }}" method="POST">
                     @csrf
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Tolak Approval?</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    @method('PUT')
+                    <div class="modal-body text-start">
+                        <div class="alert alert-info small py-2 mb-3">
+                            <i class="ti ti-info-circle me-1"></i> Anda dapat menyesuaikan jadwal check-in/out terlebih dahulu sebelum memberikan persetujuan (Setujui).
                         </div>
-                        <div class="modal-body text-start">
-                            <label class="form-label">Isi catatan untuk alasan penolakan</label>
-                            <textarea name="note" class="form-control" rows="4" placeholder="Masukkan alasan penolakan..." required></textarea>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Check-in Baru</label>
+                                <input type="datetime-local" name="waktu_mulai" class="form-control" value="{{ \Carbon\Carbon::parse($b->waktu_mulai)->format('Y-m-d\TH:i') }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Check-out Baru</label>
+                                <input type="datetime-local" name="waktu_selesai" class="form-control" value="{{ \Carbon\Carbon::parse($b->waktu_selesai)->format('Y-m-d\TH:i') }}" required>
+                            </div>
                         </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                            <button type="submit" class="btn btn-danger">Tolak</button>
-                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#detailModal{{ $b->id }}">Kembali</button>
+                        <button type="submit" class="btn btn-primary btn-save"><i class="ti ti-device-floppy me-1"></i>Simpan Perubahan</button>
                     </div>
                 </form>
             </div>
         </div>
+    </div>
+
+    {{-- 3. Modal Penolakan --}}
+    <div class="modal fade" id="rejectModal{{ $b->id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            {{-- Menggunakan route approval.reject-staff, dll --}}
+            <form method="POST" action="{{ route('approval.reject-'.$level, $b->id) }}">
+                @csrf
+                <div class="modal-content border-danger">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title text-white">Tolak Pengajuan?</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body text-start">
+                        <p class="mb-2">Anda akan menolak pengajuan <strong>{{ $b->peminjaman_code }}</strong> atas nama <strong>{{ $b->peminjam_name }}</strong>.</p>
+                        <label class="form-label fw-medium text-danger">Catatan Penolakan (Wajib)</label>
+                        <textarea name="note" class="form-control border-danger" rows="3" placeholder="Masukkan alasan kenapa pengajuan ini ditolak..." required></textarea>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-danger"><i class="ti ti-x me-1"></i>Tolak Pengajuan</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
     @endif
 @endforeach
+@endsection
 
+@push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         
+        // Menangani form Submit edit jadwal secara AJAX
         document.body.addEventListener('submit', function (event) {
-            
             if (event.target && event.target.classList.contains('ajax-edit-form')) {
                 event.preventDefault();
 
                 const form = event.target;
-                const id = form.getAttribute('data-id');
                 const url = form.getAttribute('action');
                 const btn = form.querySelector('.btn-save');
                 const originalText = btn.innerHTML;
 
-                // Animasi loading
+                // Memunculkan status loading button
                 btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Menyimpan...';
                 btn.disabled = true;
 
@@ -198,56 +284,27 @@
                                 alert("Error Server: " + (errJson.message || "Terjadi kesalahan"));
                             }
                         } catch (e) {
-                            alert("Server Laravel mengalami Error. Cek inspect element!");
+                            alert("Server Laravel mengalami Error saat memproses data.");
                         }
                         throw new Error("Gagal mengeksekusi request ke server.");
                     }
                     return response.json();
                 })
                 .then(res => {
-                    if(res.success) {
-                        try {
-                            document.getElementById('detail-dest-' + id).innerText = res.data.destination;
-                            document.getElementById('detail-purpose-' + id).innerText = res.data.purpose;
-                            document.getElementById('detail-passenger-' + id).innerText = res.data.passenger_count;
-                            document.getElementById('detail-departure-' + id).innerText = res.data.departure_full;
-                            document.getElementById('detail-return-' + id).innerText = res.data.return_full;
-                            
-                            let tdDest = document.getElementById('table-dest-' + id);
-                            if(tdDest) tdDest.innerText = res.data.destination;
-
-                            let btnKembali = form.closest('.modal-content').querySelector('[data-bs-target="#detailModal' + id + '"]');
-                            
-                            if (btnKembali) {
-                                btnKembali.click();
-                            } else {
-                                window.location.reload();
-                            }
-
-                        } catch(domErr) {
-                            window.location.reload();
-                        }
-                    } else {
-                        alert("Sistem menolak menyimpan data.");
-                    }
+                    // Update berhasil, refresh halaman supaya seluruh formatting UI (tabel & modal) sinkron dengan data terbaru
+                    window.location.reload();
                 })
                 .catch(error => {
                     console.error('AJAX Terhenti:', error);
                 })
                 .finally(() => {
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
+                    if(btn) {
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                    }
                 });
             }
         });
-
-        @if(session('show_detail_modal'))
-            let btnBukaDetail = document.querySelector('[data-bs-target="#detailModal{{ session('show_detail_modal') }}"]');
-            if (btnBukaDetail) {
-                btnBukaDetail.click();
-            }
-        @endif
     });
 </script>
-
-@endsection
+@endpush

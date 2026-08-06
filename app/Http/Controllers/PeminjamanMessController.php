@@ -5,11 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\Bungalow;
 use App\Models\Kamar;
-use App\Models\Peminjaman;
+use App\Models\MessBorrowing;
 use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -20,42 +21,80 @@ class PeminjamanMessController extends Controller
         'bungalow' => Bungalow::class,
     ];
 
-    public function index(Request $request): JsonResponse
+    /**
+     * Langkah 1 & 3: Katalog peminjaman Mess & Bungalow.
+     */
+    public function index(Request $request)
     {
-        $user = $request->user();
+        $query = MessBorrowing::with(['bookable', 'rating']);
 
-        $query = Peminjaman::query()->with(['bookable', 'rating']);
-
-        if ($request->boolean('queue')) {
-            $query = $this->scopeApprovalQueue($query, $user);
-        } else {
-            $query->where('created_by', $user->id);
+        // Fitur pencarian untuk menyesuaikan dengan form search di view
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('peminjaman_code', 'like', "%{$search}%")
+                  ->orWhere('peminjam_name', 'like', "%{$search}%")
+                  ->orWhere('keperluan', 'like', "%{$search}%")
+                  ->orWhere('peminjaman_status', 'like', "%{$search}%");
+            });
         }
 
-        $query
-            ->when($request->filled('unit_type'), function ($q) use ($request) {
-                $type = self::BOOKABLE_MAP[$request->unit_type] ?? null;
-                if ($type) {
-                    $q->where('bookable_type', $type);
-                }
-            })
-            ->when($request->filled('status'), fn ($q) => $q->where('peminjaman_status', $request->status))
-            ->when($request->filled('date_from'), fn ($q) => $q->whereDate('waktu_mulai', '>=', $request->date_from))
-            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('waktu_selesai', '<=', $request->date_to));
+        // Filter otomatis untuk melihat data sesuai Hak Akses (Role/Departemen)
+        $user = $request->user();
+        if ($user?->role !== 'Admin' && $user?->role !== 'Super Admin') {
+            if (in_array($user?->role, ['Staff Approval', 'Kasubbag Approval', 'Kabag Approval'])) {
+                $query->where('peminjam_department', $user->department);
+            } else {
+                $query->where('created_by', $user?->id);
+            }
+        }
 
-        return response()->json($query->orderByDesc('id')->paginate(15));
+        $peminjamans = $query->orderByDesc('created_by')->paginate(10);
+
+        return view('peminjaman-mess.index', compact('peminjamans'));
     }
 
-    public function show(Request $request, Peminjaman $peminjaman): JsonResponse
+    /**
+     * Menampilkan form pengajuan peminjaman berdasarkan unit (Kamar/Bungalow) yang dipilih.
+     */
+    public function create(Request $request)
+    {
+        $type = Str::lower($request->query('type', 'kamar'));
+        $id = $request->query('id');
+
+        if (! isset(self::BOOKABLE_MAP[$type])) {
+            abort(404, 'Tipe unit penginapan tidak valid.');
+        }
+
+        $bookableClass = self::BOOKABLE_MAP[$type];
+        $unit = $bookableClass::findOrFail($id);
+
+        // Validasi ketersediaan unit dan kelayakan jabatan pemohon
+        $this->assertUnitAvailable($unit);
+        $this->assertJabatanEligible($unit, $request->user()->role);
+
+        return view('peminjaman-mess.create', compact('unit', 'type'));
+    }
+
+    public function show(Request $request, MessBorrowing $peminjaman)
     {
         $this->authorizeView($request->user(), $peminjaman);
 
-        return response()->json($peminjaman->load(['bookable', 'rating', 'pemohon']));
+        return view('peminjaman-mess.show', compact('peminjaman'));
     }
 
-    public function store(Request $request): JsonResponse
+    /**
+     * Langkah 1: Pengajuan permintaan peminjaman.
+     * Menerima input dari Web Form maupun API JSON.
+     */
+    public function store(Request $request)
     {
         $user = $request->user();
+
+        // Normalisasi tipe unit ke huruf kecil
+        if ($request->has('unit_type')) {
+            $request->merge(['unit_type' => Str::lower($request->input('unit_type'))]);
+        }
 
         $validated = $request->validate([
             'unit_type' => ['required', Rule::in(array_keys(self::BOOKABLE_MAP))],
@@ -73,7 +112,8 @@ class PeminjamanMessController extends Controller
         $this->assertJabatanEligible($unit, $user->role);
 
         $peminjaman = DB::transaction(function () use ($validated, $bookableClass, $unit, $user) {
-            return Peminjaman::create([
+            return MessBorrowing::create([
+                'peminjaman_code' => 'PMJ-' . strtoupper(Str::random(10)),
                 'bookable_type' => $bookableClass,
                 'bookable_id' => $unit->id,
                 'waktu_mulai' => $validated['waktu_mulai'],
@@ -92,10 +132,17 @@ class PeminjamanMessController extends Controller
 
         ActivityLog::record($user, 'create', 'peminjaman_mess', (string) $peminjaman->id, "Mengajukan peminjaman {$validated['unit_type']}: {$peminjaman->peminjaman_code}");
 
-        return response()->json($peminjaman, 201);
+        if ($request->wantsJson()) {
+            return response()->json($peminjaman, 201);
+        }
+
+        return redirect()->route('peminjaman-mess.index')->with('success', 'Pengajuan peminjaman berhasil dibuat.');
     }
 
-    public function approve(Request $request, Peminjaman $peminjaman): JsonResponse
+    /**
+     * Langkah 2: Approval berjenjang Staff -> Kasubbag -> Kabag -> Admin.
+     */
+    public function approve(Request $request, MessBorrowing $peminjaman): JsonResponse
     {
         $user = $request->user();
         $stage = $this->currentStage($peminjaman);
@@ -111,9 +158,14 @@ class PeminjamanMessController extends Controller
             $peminjaman->{"{$stage}_approved_by"} = $user->id;
             $peminjaman->{"{$stage}_approved_at"} = now();
 
-            $peminjaman->settleApprovalStage();
+            if (method_exists($peminjaman, 'settleApprovalStage')) {
+                $peminjaman->settleApprovalStage();
+            } else {
+                $peminjaman->approval_status = $this->nextApprovalLabel($stage);
+            }
 
-            if ($peminjaman->peminjaman_status === 'Disetujui') {
+            if ($peminjaman->peminjaman_status === 'Disetujui' || $stage === 'admin') {
+                $peminjaman->peminjaman_status = 'Disetujui';
                 $peminjaman->approved_by = $user->id;
             }
 
@@ -125,7 +177,10 @@ class PeminjamanMessController extends Controller
         return response()->json($peminjaman->fresh());
     }
 
-    public function reject(Request $request, Peminjaman $peminjaman): JsonResponse
+    /**
+     * Penolakan permanen pada tahap approval manapun.
+     */
+    public function reject(Request $request, MessBorrowing $peminjaman): JsonResponse
     {
         $user = $request->user();
         $stage = $this->currentStage($peminjaman);
@@ -154,11 +209,14 @@ class PeminjamanMessController extends Controller
         return response()->json($peminjaman->fresh());
     }
 
-    public function conflicts(Request $request, Peminjaman $peminjaman): JsonResponse
+    /**
+     * Langkah 4: Deteksi bentrok jadwal (Admin).
+     */
+    public function conflicts(Request $request, MessBorrowing $peminjaman): JsonResponse
     {
-        $this->authorizeAction($request, 'read');
+        $this->authorizeAction($request, 'approve');
 
-        $others = Peminjaman::bentrok(
+        $others = MessBorrowing::bentrok(
             $peminjaman->bookable_type,
             $peminjaman->bookable_id,
             $peminjaman->waktu_mulai,
@@ -166,7 +224,7 @@ class PeminjamanMessController extends Controller
             $peminjaman->id
         )->get();
 
-        $result = $others->map(function (Peminjaman $other) use ($peminjaman) {
+        $result = $others->map(function (MessBorrowing $other) use ($peminjaman) {
             return [
                 'peminjaman' => $other,
                 'diprioritaskan' => $peminjaman->outranks($other) ? $peminjaman->peminjaman_code : $other->peminjaman_code,
@@ -179,9 +237,12 @@ class PeminjamanMessController extends Controller
         ]);
     }
 
-    public function conflictReject(Request $request, Peminjaman $peminjaman): JsonResponse
+    /**
+     * Langkah 4: Soft-reject akibat bentrok jadwal.
+     */
+    public function conflictReject(Request $request, MessBorrowing $peminjaman): JsonResponse
     {
-        $this->authorizeAction($request, 'update');
+        $this->authorizeAction($request, 'approve');
 
         $validated = $request->validate([
             'alasan' => ['nullable', 'string', 'max:500'],
@@ -200,7 +261,10 @@ class PeminjamanMessController extends Controller
         return response()->json($peminjaman->fresh());
     }
 
-    public function reschedule(Request $request, Peminjaman $peminjaman): JsonResponse
+    /**
+     * Reschedule waktu peminjaman setelah soft-reject.
+     */
+    public function reschedule(Request $request, MessBorrowing $peminjaman): JsonResponse
     {
         $user = $request->user();
 
@@ -217,7 +281,7 @@ class PeminjamanMessController extends Controller
             'waktu_selesai' => ['required', 'date', 'after:waktu_mulai'],
         ]);
 
-        $bentrok = Peminjaman::bentrok(
+        $bentrok = MessBorrowing::bentrok(
             $peminjaman->bookable_type,
             $peminjaman->bookable_id,
             $validated['waktu_mulai'],
@@ -247,7 +311,10 @@ class PeminjamanMessController extends Controller
         return response()->json($peminjaman->fresh());
     }
 
-    public function updateWaktu(Request $request, Peminjaman $peminjaman): JsonResponse
+    /**
+     * Langkah 3: Edit waktu peminjaman oleh Admin.
+     */
+    public function updateWaktu(Request $request, MessBorrowing $peminjaman): JsonResponse
     {
         $this->authorizeAction($request, 'update');
 
@@ -279,7 +346,10 @@ class PeminjamanMessController extends Controller
         return response()->json($peminjaman->fresh());
     }
 
-    public function destroy(Request $request, Peminjaman $peminjaman): JsonResponse
+    /**
+     * Pembatalan pengajuan oleh pemohon.
+     */
+    public function destroy(Request $request, MessBorrowing $peminjaman): JsonResponse
     {
         $user = $request->user();
 
@@ -298,9 +368,12 @@ class PeminjamanMessController extends Controller
         return response()->json(['message' => 'Pengajuan berhasil dibatalkan.']);
     }
 
+    /**
+     * Bagian 7: Export data ke Excel.
+     */
     public function exportExcel(Request $request)
     {
-        $this->authorizeAction($request, 'read');
+        $this->authorizeAction($request, 'export');
 
         $filters = $request->validate([
             'date_from' => ['nullable', 'date'],
@@ -318,9 +391,12 @@ class PeminjamanMessController extends Controller
         );
     }
 
+    /**
+     * Bagian 7: Export data ke PDF.
+     */
     public function exportPdf(Request $request)
     {
-        $this->authorizeAction($request, 'read');
+        $this->authorizeAction($request, 'export');
 
         $filters = $request->validate([
             'date_from' => ['nullable', 'date'],
@@ -341,7 +417,7 @@ class PeminjamanMessController extends Controller
 
     private function buildExportQuery(array $filters)
     {
-        return Peminjaman::query()
+        return MessBorrowing::query()
             ->with('bookable')
             ->when($filters['date_from'] ?? null, fn ($q, $v) => $q->whereDate('waktu_mulai', '>=', $v))
             ->when($filters['date_to'] ?? null, fn ($q, $v) => $q->whereDate('waktu_selesai', '<=', $v))
@@ -364,8 +440,8 @@ class PeminjamanMessController extends Controller
 
     private function assertJabatanEligible(Kamar|Bungalow $unit, string $peminjamRole): void
     {
-        $minLevel = Peminjaman::RANK_ORDER[$unit->minimum_jabatan] ?? Peminjaman::RANK_ORDER['User'];
-        $userLevel = Peminjaman::RANK_ORDER[$peminjamRole] ?? Peminjaman::RANK_ORDER['User'];
+        $minLevel = MessBorrowing::RANK_ORDER[$unit->minimum_jabatan] ?? MessBorrowing::RANK_ORDER['User'];
+        $userLevel = MessBorrowing::RANK_ORDER[$peminjamRole] ?? MessBorrowing::RANK_ORDER['User'];
 
         if ($userLevel < $minLevel) {
             throw ValidationException::withMessages([
@@ -374,7 +450,7 @@ class PeminjamanMessController extends Controller
         }
     }
 
-    private function currentStage(Peminjaman $peminjaman): ?string
+    private function currentStage(MessBorrowing $peminjaman): ?string
     {
         return match ($peminjaman->approval_status) {
             'Menunggu Staff' => 'staff',
@@ -385,27 +461,25 @@ class PeminjamanMessController extends Controller
         };
     }
 
-    private function assertIsApproverForStage($user, Peminjaman $peminjaman, string $stage): void
+    private function nextApprovalLabel(string $currentStage): string
+    {
+        return match ($currentStage) {
+            'staff' => 'Menunggu Kasubbag',
+            'kasubbag' => 'Menunggu Kabag',
+            'kabag' => 'Menunggu Admin',
+            'admin' => 'Disetujui',
+            default => 'Disetujui',
+        };
+    }
+
+    private function assertIsApproverForStage($user, MessBorrowing $peminjaman, string $stage): void
     {
         $candidateIds = $peminjaman->candidateApprovers($stage)->pluck('id');
 
         abort_unless($candidateIds->contains($user->id), 403, 'Anda tidak berwenang memproses tahap ini.');
     }
 
-    private function scopeApprovalQueue($query, $user)
-    {
-        return match ($user->role) {
-            'Kasubbag Approval' => $query->where('approval_status', 'Menunggu Kasubbag')
-                ->where('peminjam_sub_department', $user->sub_department),
-            'Kabag Approval' => $query->where('approval_status', 'Menunggu Kabag')
-                ->where('peminjam_department', $user->department),
-            'Admin' => $query->where('approval_status', 'Menunggu Admin'),
-            default => $query->where('approval_status', 'Menunggu Staff')
-                ->where('peminjam_department', $user->department),
-        };
-    }
-
-    private function authorizeView($user, Peminjaman $peminjaman): void
+    private function authorizeView($user, MessBorrowing $peminjaman): void
     {
         if ($peminjaman->created_by === $user->id || $user->role === 'Admin') {
             return;
@@ -417,7 +491,7 @@ class PeminjamanMessController extends Controller
                 $this->assertIsApproverForStage($user, $peminjaman, $stage);
                 return;
             } catch (\Throwable) {
-
+                // Ignore and fallthrough to abort
             }
         }
 

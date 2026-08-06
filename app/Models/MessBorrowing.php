@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Collection;
 
-class Peminjaman extends Model
+class MessBorrowing extends Model
 {
     use HasFactory;
 
@@ -39,7 +39,7 @@ class Peminjaman extends Model
 
     protected static function booted(): void
     {
-        static::creating(function (Peminjaman $peminjaman) {
+        static::creating(function (MessBorrowing $peminjaman) {
             if (empty($peminjaman->peminjaman_code)) {
                 $peminjaman->peminjaman_code = self::generateCode();
             }

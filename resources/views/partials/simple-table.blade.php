@@ -7,7 +7,7 @@
             </h2>
         </div>
         <div class="table-responsive">
-            <table class="table mb-0 text-nowrap table-hover">
+            <table class="table mb-0 text-nowrap table-hover table-accordion">
                 <thead class="table-light border-light">
                     <tr>@foreach($headers as $header)<th>{{ $header }}</th>@endforeach</tr>
                 </thead>

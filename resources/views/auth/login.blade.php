@@ -1,25 +1,40 @@
 @extends('layouts.app')
+
+@section('title', 'Login - Peminjaman Mess PTPN 1')
+
 @section('content')
-<div class="container d-flex align-items-center justify-content-center min-vh-100">
-    <div class="card shadow-sm" style="max-width:420px; width:100%;">
-        <div class="card-body p-5">
-            <div class="text-center mb-3">
-                <img src="{{ asset('inapp/assets/images/logo-ptpn1.png') }}" alt="PTPN 1" style="height:96px; width:auto; object-fit:contain;">
-                <h1 class="card-title mt-4 mb-2 h5">Masuk ke aplikasi</h1>
-                <p class="text-secondary small mb-0">Aplikasi Peminjaman Kendaraan Operasional</p>
+<div class="container d-flex align-items-center justify-content-center" style="min-height: 100vh;">
+    <div class="card shadow-sm border-0" style="max-width: 420px; width: 100%;">
+        <div class="card-body p-4 p-md-5">
+            <div class="text-center mb-4">
+                <img src="{{ asset('inapp/assets/images/logo-ptpn1.png') }}" alt="Logo" style="height: 56px; width: auto; object-fit: contain;" class="mb-3">
+                <h1 class="fs-4 fw-bold mb-1">Masuk ke aplikasi</h1>
+                <p class="text-secondary small mb-0">Aplikasi Peminjaman Mess &amp; Bungalow</p>
             </div>
-            @include('layouts.flash')
-            <form method="post" action="{{ route('login.process') }}" class="needs-validation mt-4">
+
+            @if ($errors->any())
+                <div class="alert alert-danger py-2 small">{{ $errors->first() }}</div>
+            @endif
+
+            <form action="{{ route('login.process') }}" method="POST">
                 @csrf
+
                 <div class="mb-3">
                     <label for="username" class="form-label">Username</label>
-                    <input id="username" name="username" class="form-control" value="{{ old('username') }}" required autofocus>
+                    <input type="text" name="username" id="username"
+                        class="form-control @error('username') is-invalid @enderror"
+                        value="{{ old('username') }}" required autofocus>
                 </div>
-                <div class="mb-3">
+
+                <div class="mb-4">
                     <label for="password" class="form-label">Password</label>
-                    <input id="password" type="password" name="password" class="form-control" required>
+                    <input type="password" name="password" id="password"
+                        class="form-control @error('password') is-invalid @enderror" required>
                 </div>
-                <button class="btn btn-primary w-100" type="submit">Login</button>
+
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="ti ti-login me-1"></i> Login
+                </button>
             </form>
         </div>
     </div>

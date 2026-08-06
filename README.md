@@ -1,6 +1,6 @@
 # Sistem Peminjaman Mess & Bungalow
 
-> Modul standalone untuk pengelolaan peminjaman Mess dan Bungalow BEM Polmed, terpisah dari Sistem Peminjaman Kendaraan, dengan alur approval dan hierarki jabatan tersendiri.
+> Modul standalone untuk pengelolaan peminjaman Mess dan Bungalow, terpisah dari Sistem Peminjaman Kendaraan, dengan alur approval dan hierarki jabatan tersendiri.
 
 ## Deskripsi
 
