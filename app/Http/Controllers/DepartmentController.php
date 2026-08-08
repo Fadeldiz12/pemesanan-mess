@@ -24,7 +24,7 @@ class DepartmentController extends Controller
         $data['code'] = $data['code'] ?: $this->nextCode();
         $data['created_by'] = auth()->id();
         $department = Department::create($data);
-        ActivityLog::record('Tambah Bagian', 'Bagian', $department->id, $department->name);
+        ActivityLog::record(auth()->user(), 'Tambah Bagian', 'Bagian', $department->id, $department->name);
 
         return redirect()->route('departments.index')->with('success', 'Bagian berhasil ditambahkan.');
     }
@@ -80,7 +80,7 @@ class DepartmentController extends Controller
 
         // 3. Simpan murni JSON ke kolom parameter ke-1 agar terbaca sebagai detail log oleh View Universal
         $activity = !empty($changes) ? json_encode($changes) : 'Edit Bagian';
-        ActivityLog::record($activity, 'Bagian', $department->id, $department->name);
+        ActivityLog::record(auth()->user(), $activity, 'Bagian', $department->id, $department->name);
 
         return redirect()->route('departments.index')->with('success', 'Bagian berhasil diperbarui.');
     }
@@ -91,7 +91,7 @@ class DepartmentController extends Controller
             return back()->with('warning', 'Bagian tidak bisa dihapus karena masih memiliki subbagian. Hapus subbagian terlebih dahulu.');
         }
 
-        ActivityLog::record('Hapus Bagian', 'Bagian', $department->id, $department->name);
+        ActivityLog::record(auth()->user(), 'Hapus Bagian', 'Bagian', $department->id, $department->name);
         $department->delete();
 
         return back()->with('success', 'Bagian berhasil dihapus.');

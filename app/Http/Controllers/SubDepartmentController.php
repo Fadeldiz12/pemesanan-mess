@@ -28,7 +28,7 @@ class SubDepartmentController extends Controller
         $data['code'] = $data['code'] ?: $this->nextCode();
         $data['created_by'] = auth()->id();
         $subDepartment = SubDepartment::create($data);
-        ActivityLog::record('Tambah Subbagian', 'Subbagian', $subDepartment->id, $subDepartment->name);
+        ActivityLog::record(auth()->user(), 'Tambah Subbagian', 'Subbagian', $subDepartment->id, $subDepartment->name);
 
         return redirect()->route('sub-departments.index')->with('success', 'Subbagian berhasil ditambahkan.');
     }
@@ -53,7 +53,7 @@ class SubDepartmentController extends Controller
 
         $data['updated_by'] = auth()->id();
         $subDepartment->update($data);
-        ActivityLog::record('Edit Subbagian', 'Subbagian', $subDepartment->id, $subDepartment->name);
+        ActivityLog::record(auth()->user(), 'Edit Subbagian', 'Subbagian', $subDepartment->id, $subDepartment->name);
 
         return redirect()->route('sub-departments.index')->with('success', 'Subbagian berhasil diperbarui.');
     }
@@ -64,7 +64,7 @@ class SubDepartmentController extends Controller
             return back()->with('warning', 'Subbagian tidak bisa dihapus karena memiliki riwayat peminjaman mess/bungalow.');
         }
 
-        ActivityLog::record('Hapus Subbagian', 'Subbagian', $subDepartment->id, $subDepartment->name);
+        ActivityLog::record(auth()->user(), 'Hapus Subbagian', 'Subbagian', $subDepartment->id, $subDepartment->name);
         $subDepartment->delete();
 
         return back()->with('success', 'Subbagian berhasil dihapus.');

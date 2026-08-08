@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\Bungalow;
 use App\Models\Kamar;
+use App\Models\Mess;
 use App\Models\MessBorrowing;
 use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
@@ -59,21 +60,22 @@ class PeminjamanMessController extends Controller
      */
     public function create(Request $request)
     {
-        $type = Str::lower($request->query('type', 'kamar'));
-        $id = $request->query('id');
+        $eligibleJabatan = $this->eligibleJabatan($request->user()->role);
 
-        if (! isset(self::BOOKABLE_MAP[$type])) {
-            abort(404, 'Tipe unit penginapan tidak valid.');
-        }
+        // Cuma kamar yang tersedia & sesuai/di bawah jabatan pemohon yang ditampilkan,
+        // dikelompokkan per mess biar dropdown kamar bisa mengikuti mess yang dipilih.
+        $kamarsByMess = Kamar::where('status_ketersediaan', 'Tersedia')
+            ->whereIn('minimum_jabatan', $eligibleJabatan)
+            ->get()
+            ->groupBy('mess_id');
 
-        $bookableClass = self::BOOKABLE_MAP[$type];
-        $unit = $bookableClass::findOrFail($id);
+        $messById = Mess::where('status', 'Aktif')->pluck('nama', 'id');
 
-        // Validasi ketersediaan unit dan kelayakan jabatan pemohon
-        $this->assertUnitAvailable($unit);
-        $this->assertJabatanEligible($unit, $request->user()->role);
+        $bungalows = Bungalow::where('status', 'Aktif')
+            ->whereIn('minimum_jabatan', $eligibleJabatan)
+            ->get();
 
-        return view('peminjaman-mess.create', compact('unit', 'type'));
+        return view('peminjaman-mess.create', compact('messById', 'kamarsByMess', 'bungalows'));
     }
 
     public function show(Request $request, MessBorrowing $peminjaman)
@@ -448,6 +450,20 @@ class PeminjamanMessController extends Controller
                 'unit_id' => "Unit ini hanya bisa dipesan oleh jabatan minimal {$unit->minimum_jabatan}.",
             ]);
         }
+    }
+
+    /**
+     * Daftar minimum_jabatan yang boleh dilihat/dipesan oleh $role tertentu
+     * (jabatan role itu sendiri + semua yang levelnya di bawahnya).
+     */
+    private function eligibleJabatan(string $role): array
+    {
+        $userLevel = MessBorrowing::RANK_ORDER[$role] ?? MessBorrowing::RANK_ORDER['User'];
+
+        return collect(MessBorrowing::RANK_ORDER)
+            ->filter(fn ($level) => $level <= $userLevel)
+            ->keys()
+            ->all();
     }
 
     private function currentStage(MessBorrowing $peminjaman): ?string

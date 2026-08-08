@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Role;
 use App\Models\RolePermission;
 use Illuminate\Database\Seeder;
 
@@ -9,7 +10,7 @@ class RolePermissionSeeder extends Seeder
 {
     /**
      * Eksplisit isi row role_permissions (biar keliatan & bisa diedit lewat
-     * AccessMatrixController), meski AccessMatrix::defaults() sebenarnya
+     * halaman Management Akses), meski AccessMatrix::defaults() sebenarnya
      * sudah nyediain fallback yang sama persis kalau row-nya belum ada.
      *
      * Role di sini ngikutin app/Support/AccessMatrix.php ('User', 'Staff
@@ -23,6 +24,21 @@ class RolePermissionSeeder extends Seeder
      */
     public function run(): void
     {
+        // Level ngikutin MessBorrowing::RANK_ORDER supaya konsisten - dulu
+        // cuma role 'Super Admin' yang punya row di tabel roles (dibuat
+        // SuperAdminSeeder), sisanya cuma "nempel" sebagai string di
+        // role_permissions.role tanpa pernah benar-benar dibuat row-nya di
+        // tabel roles. Akibatnya AccessMatrix::roles() - yang jadi sumber
+        // dropdown role di halaman User & Management Akses - cuma
+        // mengembalikan ['Super Admin'] di database baru.
+        $levels = [
+            'User' => 1,
+            'Staff Approval' => 2,
+            'Kasubbag Approval' => 3,
+            'Kabag Approval' => 4,
+            'Admin' => 5,
+        ];
+
         $matrix = [
             'User' => [
                 'mess' => ['read'],
@@ -48,11 +64,17 @@ class RolePermissionSeeder extends Seeder
                 'mess' => ['read', 'create', 'update', 'delete'],
                 'bungalow' => ['read', 'create', 'update', 'delete'],
                 'peminjaman-mess' => ['read', 'create', 'approve', 'update', 'export'],
-                'role-access' => ['read', 'create', 'update', 'delete'],
+                'users' => ['read', 'create', 'update', 'delete'],
+                'role-access' => ['read', 'update'],
             ],
         ];
 
         foreach ($matrix as $role => $menus) {
+            Role::updateOrCreate(
+                ['name' => $role],
+                ['level' => $levels[$role] ?? 0, 'status' => 'Aktif']
+            );
+
             foreach ($menus as $menuKey => $actions) {
                 RolePermission::updateOrCreate(
                     ['role' => $role, 'menu_key' => $menuKey],

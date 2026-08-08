@@ -23,9 +23,17 @@
             ['label' => 'Export Excel', 'route' => 'peminjaman.export-excel'],
             ['label' => 'Export PDF', 'route' => 'peminjaman.export-pdf'],
         ]],
+
+        ['type' => 'group', 'label' => 'Administrasi', 'icon' => 'ti ti-shield-lock', 'key' => 'administrasi', 'children' => [
+            ['label' => 'Manajemen User', 'route' => 'users.index', 'can' => 'users'],
+            ['label' => 'Management Akses', 'route' => 'role-access.index', 'can' => 'role-access'],
+        ]],
     ])->map(function ($item) {
         if (($item['type'] ?? 'link') === 'group') {
-            $item['children'] = collect($item['children'])->filter(fn ($c) => \Illuminate\Support\Facades\Route::has($c['route']))->values()->all();
+            $item['children'] = collect($item['children'])
+                ->filter(fn ($c) => \Illuminate\Support\Facades\Route::has($c['route']))
+                ->filter(fn ($c) => !isset($c['can']) || \App\Support\AccessMatrix::can($c['can'], 'read'))
+                ->values()->all();
             $item['show'] = count($item['children']) > 0;
             $item['active'] = collect($item['children'])->contains(fn ($c) => request()->routeIs($c['route']));
         } else {

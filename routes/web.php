@@ -8,14 +8,11 @@ use App\Http\Controllers\KamarController;
 use App\Http\Controllers\MessController;
 use App\Http\Controllers\RatingMessController;
 use App\Http\Controllers\PeminjamanMessController;
+use App\Http\Controllers\RoleAccessController;
 use App\Http\Controllers\SubDepartmentController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
-/*
-|--------------------------------------------------------------------------
-| Routes Autentikasi (Guest & Auth)
-|--------------------------------------------------------------------------
-*/
 
 // Redirect halaman utama ke daftar peminjaman mess
 Route::redirect('/', '/peminjaman-mess');
@@ -34,22 +31,16 @@ Route::get('/dashboard', function () {
     return view('dashboard.index');
 })->name('dashboard');
 
-/*
-|--------------------------------------------------------------------------
-| Routes Modul Peminjaman Mess & Bungalow
-|--------------------------------------------------------------------------
-*/
 
 Route::middleware(['auth'])->group(function () {
 
-    // Rute sementara untuk melihat UI Master Data Mess
-    // Route::get('/messes', function () {
-    //     return view('messes.index');
-    // })->name('messes.index');
+    Route::get('/messes', function () {
+        return view('messes.index');
+    })->name('messes.index');
     
-    // Route::get('/messes/create', function () {
-    //     return view('messes.create');
-    // })->name('messes.create');
+    Route::get('/messes/create', function () {
+        return view('messes.create');
+    })->name('messes.create');
 
     // Katalog & Halaman Pemesanan Utama
     Route::get('/peminjaman-mess', [PeminjamanMessController::class, 'index'])->name('peminjaman-mess.index');
@@ -89,6 +80,15 @@ Route::middleware(['auth'])->group(function () {
     // Master Data Bagian & Subbagian
     Route::resource('departments', DepartmentController::class);
     Route::resource('sub-departments', SubDepartmentController::class);
+
+    // Manajemen User & Management Akses (Administrasi)
+    Route::resource('users', UserController::class)->except(['show']);
+    Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+
+    Route::get('/role-access', [RoleAccessController::class, 'index'])->name('role-access.index');
+    Route::post('/role-access', [RoleAccessController::class, 'update'])->name('role-access.update');
+    Route::post('/role-access/roles', [RoleAccessController::class, 'storeRole'])->name('role-access.roles.store');
+    Route::delete('/role-access/roles/{role}', [RoleAccessController::class, 'destroyRole'])->name('role-access.roles.destroy');
 
     // Export Data (Excel / PDF)
     Route::get('/peminjaman-mess-export/excel', [PeminjamanMessController::class, 'exportExcel'])->name('peminjaman.export-excel');

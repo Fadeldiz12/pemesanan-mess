@@ -85,6 +85,8 @@ class AccessMatrix
                 'borrowings-history' => ['read'],
                 'reports' => ['read', 'export'],
                 'logs' => ['read'],
+                'users' => ['read', 'create', 'update', 'delete'],
+                'role-access' => ['read', 'update'],
             ],
             'Staff Approval' => [
                 'dashboard' => ['read'],

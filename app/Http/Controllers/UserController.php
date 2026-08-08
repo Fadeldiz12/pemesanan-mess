@@ -2,146 +2,196 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
-use App\Models\Role;
+use App\Models\Department;
+use App\Models\MessBorrowing;
 use App\Models\SubDepartment;
 use App\Models\User;
 use App\Support\AccessMatrix;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
- * Manajemen akun user (menu 'users' di AccessMatrix::menus()) - CRUD dasar,
- * reset password, dan (de)aktivasi. Ganti password milik sendiri tetap lewat
- * AuthController::changePassword() (alur force_change_password), bukan di sini.
+ * Manajemen akun user (menu 'users' di AccessMatrix::menus()). Pola CRUD di
+ * sini sengaja disamakan dengan DepartmentController/SubDepartmentController
+ * (view + redirect + flash, bukan JSON) supaya konsisten dengan seluruh
+ * halaman admin lain di app ini. Ganti password milik sendiri tetap lewat
+ * AuthController/halaman password.edit (alur force_change_password), bukan
+ * di sini - resetPassword() di controller ini khusus reset paksa oleh admin.
  */
 class UserController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request)
     {
         $this->authorizeAction($request, 'read');
 
-        $users = User::query()
-            ->when($request->filled('role'), fn ($q) => $q->where('role', $request->query('role')))
-            ->when($request->filled('department'), fn ($q) => $q->where('department', $request->query('department')))
-            ->when($request->filled('sub_department'), fn ($q) => $q->where('sub_department', $request->query('sub_department')))
-            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->query('status')))
-            ->when($request->filled('search'), function ($q) use ($request) {
-                $term = $request->query('search');
-                $q->where(fn ($sub) => $sub->where('name', 'like', "%{$term}%")
-                    ->orWhere('username', 'like', "%{$term}%")
-                    ->orWhere('email', 'like', "%{$term}%"));
-            })
-            ->orderBy('name')
-            ->paginate(20);
-
-        return response()->json($users);
+        return view('users.index', ['users' => User::latest()->paginate(15)]);
     }
 
-    public function show(Request $request, User $user): JsonResponse
-    {
-        $this->authorizeAction($request, 'read');
-
-        return response()->json($user);
-    }
-
-    public function store(Request $request): JsonResponse
+    public function create(Request $request)
     {
         $this->authorizeAction($request, 'create');
 
-        $validated = $request->validate($this->rules($request));
-
-        $user = User::create([
-            ...$validated,
-            'password' => Hash::make($validated['password']),
-            'status' => 'Aktif',
-            'force_change_password' => true, // wajib ganti password sendiri di login pertama
+        return view('users.create', [
+            'user' => new User(),
+            'departments' => $this->departments(),
+            'subDepartments' => $this->subDepartments(),
+            'roles' => AccessMatrix::roles(),
         ]);
-
-        ActivityLog::record($request->user(), 'create', 'users', (string) $user->id, "Menambahkan user {$user->name} ({$user->username})");
-
-        return response()->json($user, 201);
     }
 
-    public function update(Request $request, User $user): JsonResponse
+    public function store(Request $request)
+    {
+        $this->authorizeAction($request, 'create');
+
+        $data = $this->validated($request);
+        $data['password'] = Hash::make($data['password']);
+        $data['force_change_password'] = $request->boolean('force_change_password', false);
+
+        $user = User::create($data);
+
+        ActivityLog::record($request->user(), 'Tambah User', 'User', $user->id, "{$user->name} ({$user->username})");
+
+        return redirect()->route('users.index')->with('success', 'User berhasil dibuat.');
+    }
+
+    public function edit(Request $request, User $user)
     {
         $this->authorizeAction($request, 'update');
 
-        $rules = $this->rules($request, $user);
-        unset($rules['password']); // ganti password lewat resetPassword(), bukan update() biasa
-        $rules['status'] = ['required', Rule::in(['Aktif', 'Nonaktif'])];
+        return view('users.edit', [
+            'user' => $user,
+            'departments' => $this->departments(),
+            'subDepartments' => $this->subDepartments(),
+            'roles' => AccessMatrix::roles(),
+        ]);
+    }
 
-        $validated = $request->validate($rules);
+    public function update(Request $request, User $user)
+    {
+        $this->authorizeAction($request, 'update');
 
-        $this->guardSelfAndLastSuperAdmin($request, $user, $validated);
+        $data = $this->validated($request, $user->id, true);
 
-        $user->update($validated);
+        if ($guard = $this->guardSelfAndLastSuperAdmin($request, $user, $data['role'], $data['status'])) {
+            return $guard;
+        }
 
-        ActivityLog::record($request->user(), 'update', 'users', (string) $user->id, "Memperbarui user {$user->name} ({$user->username})");
+        // Snapshot sebelum update, dipakai untuk audit trail before/after (format sama dengan
+        // DepartmentController & dibaca oleh resources/views/logs/index.blade.php).
+        $originalData = $user->only(['name', 'username', 'email', 'department', 'sub_department', 'role', 'status', 'force_change_password']);
 
-        return response()->json($user);
+        if (empty($data['password'])) {
+            unset($data['password']);
+        } else {
+            $data['password'] = Hash::make($data['password']);
+        }
+        $data['force_change_password'] = $request->boolean('force_change_password');
+
+        $user->update($data);
+
+        $changes = [];
+        $labels = [
+            'name' => 'Nama',
+            'username' => 'Username',
+            'email' => 'Email',
+            'department' => 'Bagian',
+            'sub_department' => 'Subbagian',
+            'role' => 'Role Akses',
+            'status' => 'Status',
+            'force_change_password' => 'Paksa Ganti Password',
+        ];
+
+        foreach ($originalData as $key => $oldValue) {
+            $newValue = $key === 'force_change_password' ? $data['force_change_password'] : ($data[$key] ?? $oldValue);
+
+            if ($oldValue != $newValue) {
+                if ($key === 'force_change_password') {
+                    $oldValue = $oldValue ? 'Ya' : 'Tidak';
+                    $newValue = $newValue ? 'Ya' : 'Tidak';
+                }
+
+                $changes[$labels[$key] ?? $key] = ['before' => $oldValue, 'after' => $newValue];
+            }
+        }
+
+        $activity = !empty($changes) ? json_encode($changes) : 'Edit User';
+        ActivityLog::record($request->user(), $activity, 'User', $user->id, "{$user->name} ({$user->username})");
+
+        return redirect()->route('users.index')->with('success', 'User berhasil diperbarui.');
     }
 
     /**
-     * Bukan hard delete - status diubah jadi 'Nonaktif'. Tabel users gak
-     * pakai softDeletes(), dan hard-delete bakal ninggalin created_by/
-     * approved_by/dst di peminjaman jadi null (kehilangan histori approval).
+     * "Hapus" di UI, tapi hanya hard-delete kalau user itu belum pernah
+     * tersangkut di riwayat peminjaman mess/bungalow (pemohon/approver/dst).
+     * Kalau sudah, di-nonaktifkan saja - sama seperti kenapa
+     * DepartmentController/SubDepartmentController menolak hapus data yang
+     * masih dipakai peminjaman. FK created_by/approved_by/dst di tabel
+     * peminjaman pakai nullOnDelete(), jadi hard-delete TIDAK akan gagal
+     * secara SQL, tapi bakal bikin kolom "disetujui oleh"/"diajukan oleh" di
+     * riwayat lama jadi kosong - makanya tetap dicegah di level aplikasi.
      */
-    public function destroy(Request $request, User $user): JsonResponse
+    public function destroy(Request $request, User $user)
     {
         $this->authorizeAction($request, 'delete');
 
-        $this->guardSelfAndLastSuperAdmin($request, $user, ['role' => $user->role, 'status' => 'Nonaktif']);
+        if ($user->id === $request->user()->id) {
+            return back()->with('warning', 'Tidak dapat menghapus akun sendiri.');
+        }
 
-        $user->update(['status' => 'Nonaktif']);
+        if ($this->isLastActiveSuperAdmin($user)) {
+            return back()->with('warning', 'Tidak dapat menghapus Super Admin aktif terakhir.');
+        }
 
-        ActivityLog::record($request->user(), 'deactivate', 'users', (string) $user->id, "Menonaktifkan user {$user->name} ({$user->username})");
+        if ($this->hasBorrowingHistory($user)) {
+            $user->update(['status' => 'Tidak Aktif']);
+            ActivityLog::record($request->user(), 'Nonaktifkan User', 'User', $user->id, "{$user->name} ({$user->username})");
 
-        return response()->json(['message' => 'User berhasil dinonaktifkan.']);
+            return back()->with('warning', "User {$user->name} punya riwayat peminjaman/approval mess-bungalow, jadi tidak dihapus permanen agar histori tetap utuh - status diubah ke Tidak Aktif.");
+        }
+
+        ActivityLog::record($request->user(), 'Hapus User', 'User', $user->id, "{$user->name} ({$user->username})");
+        $user->delete();
+
+        return back()->with('success', 'User berhasil dihapus.');
     }
 
     /**
-     * Reset password paksa oleh Admin (mis. user lupa password). Password
-     * baru dikembalikan di response - ini tools internal admin, bukan API
-     * publik, dan sistem belum punya alur reset password mandiri via email.
+     * Reset password paksa oleh Admin/Super Admin (mis. user lupa password).
+     * Berbeda dari alur ganti password mandiri (force_change_password) - di
+     * sini admin yang menentukan password barunya lewat form.
      */
-    public function resetPassword(Request $request, User $user): JsonResponse
+    public function resetPassword(Request $request, User $user)
     {
         $this->authorizeAction($request, 'update');
 
-        $newPassword = Str::password(12);
+        $data = $request->validate(['password' => ['required', 'min:8', 'confirmed']]);
 
         $user->update([
-            'password' => Hash::make($newPassword),
-            'force_change_password' => true,
+            'password' => Hash::make($data['password']),
+            'force_change_password' => $request->boolean('force_change_password', true),
         ]);
 
-        ActivityLog::record($request->user(), 'reset_password', 'users', (string) $user->id, "Reset password user {$user->name} ({$user->username})");
+        ActivityLog::record($request->user(), 'Reset Password User', 'User', $user->id, "{$user->name} ({$user->username})");
 
-        return response()->json([
-            'message' => 'Password berhasil direset. Sampaikan password baru ini ke user secara aman.',
-            'new_password' => $newPassword,
-        ]);
+        return back()->with('success', 'Password user berhasil direset.');
     }
 
     /**
-     * Validasi dipakai bareng store()/update(). department/sub_department
-     * divalidasi terhadap tabel referensi (bukan bebas string), dan
-     * sub_department wajib diisi kalau role-nya Kasubbag Approval (kalau
-     * kosong, candidateApprovers() di model Peminjaman gak akan pernah
-     * nemu orang ini sebagai approver).
+     * department wajib untuk role Kabag/Kasubbag Approval, sub_department
+     * wajib untuk Kasubbag Approval - karena candidateApprovers() di
+     * MessBorrowing mencari approver lewat kecocokan department/
+     * sub_department persis. Kalau kosong, pengajuan dari department/
+     * sub_department itu bisa macet karena approver-nya gak pernah ketemu.
      */
-    private function rules(Request $request, ?User $user = null): array
+    private function validated(Request $request, ?int $id = null, bool $edit = false): array
     {
-        return [
+        $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')->ignore($user?->id)],
+            'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')->ignore($id)],
+            'password' => [$edit ? 'nullable' : 'required', 'string', 'min:8'],
             'email' => ['nullable', 'email', 'max:255'],
-            'password' => ['required', 'string', 'min:8'],
             'department' => [
                 'nullable', 'string', 'exists:departments,name',
                 Rule::requiredIf(fn () => in_array($request->input('role'), ['Kabag Approval', 'Kasubbag Approval'], true)),
@@ -155,42 +205,70 @@ class UserController extends Controller
                     }
                     $subDept = SubDepartment::where('name', $value)->first();
                     if (! $subDept) {
-                        $fail('Sub departemen tidak ditemukan.');
+                        $fail('Subbagian tidak ditemukan.');
                         return;
                     }
                     $department = $request->input('department');
                     if ($department && $subDept->department?->name !== $department) {
-                        $fail('Sub departemen tidak sesuai dengan departemen yang dipilih.');
+                        $fail('Subbagian tidak sesuai dengan bagian yang dipilih.');
                     }
                 },
             ],
             'role' => ['required', 'string', Rule::exists('roles', 'name')->where('status', 'Aktif')],
-        ];
+            'status' => ['required', Rule::in(['Aktif', 'Tidak Aktif'])],
+        ]);
+
+        return $data;
     }
 
     /**
-     * Cegah Admin menonaktifkan akun sendiri (potensi lockout), dan cegah
-     * Super Admin AKTIF TERAKHIR dinonaktifkan/diturunkan rolenya (sistem
-     * bisa kehilangan akses penuh sama sekali).
+     * Cegah Admin/Super Admin menonaktifkan akun sendiri (potensi lockout),
+     * dan cegah Super Admin AKTIF TERAKHIR diturunkan role atau
+     * dinonaktifkan (sistem bisa kehilangan akses penuh sama sekali).
      */
-    private function guardSelfAndLastSuperAdmin(Request $request, User $user, array $incoming): void
+    private function guardSelfAndLastSuperAdmin(Request $request, User $user, string $incomingRole, string $incomingStatus)
     {
         $actingUser = $request->user();
 
-        if ($user->id === $actingUser->id && ($incoming['status'] ?? $user->status) === 'Nonaktif') {
-            abort(422, 'Tidak dapat menonaktifkan akun sendiri.');
+        if ($user->id === $actingUser->id && $incomingStatus === 'Tidak Aktif') {
+            return back()->with('warning', 'Tidak dapat menonaktifkan akun sendiri.')->withInput();
         }
 
-        $isLastActiveSuperAdmin = $user->role === 'Super Admin'
+        if ($this->isLastActiveSuperAdmin($user) && ($incomingRole !== 'Super Admin' || $incomingStatus !== 'Aktif')) {
+            return back()->with('warning', 'Tidak dapat menonaktifkan atau mengubah role Super Admin aktif terakhir.')->withInput();
+        }
+
+        return null;
+    }
+
+    private function isLastActiveSuperAdmin(User $user): bool
+    {
+        return $user->role === 'Super Admin'
             && $user->status === 'Aktif'
             && User::where('role', 'Super Admin')->where('status', 'Aktif')->count() <= 1;
+    }
 
-        if ($isLastActiveSuperAdmin) {
-            $losingRole = ($incoming['role'] ?? $user->role) !== 'Super Admin';
-            $losingStatus = ($incoming['status'] ?? $user->status) !== 'Aktif';
+    private function hasBorrowingHistory(User $user): bool
+    {
+        return MessBorrowing::where('created_by', $user->id)
+            ->orWhere('updated_by', $user->id)
+            ->orWhere('approved_by', $user->id)
+            ->orWhere('rejected_by', $user->id)
+            ->orWhere('staff_approved_by', $user->id)
+            ->orWhere('kasubbag_approved_by', $user->id)
+            ->orWhere('kabag_approved_by', $user->id)
+            ->orWhere('admin_approved_by', $user->id)
+            ->exists();
+    }
 
-            abort_if($losingRole || $losingStatus, 422, 'Tidak dapat menonaktifkan/mengubah role Super Admin aktif terakhir.');
-        }
+    private function departments()
+    {
+        return Department::where('status', 'Aktif')->orderBy('name')->get();
+    }
+
+    private function subDepartments()
+    {
+        return SubDepartment::with('department')->where('status', 'Aktif')->orderBy('name')->get();
     }
 
     private function authorizeAction(Request $request, string $action): void
