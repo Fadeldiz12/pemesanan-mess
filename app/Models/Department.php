@@ -24,19 +24,20 @@ class Department extends Model
     }
 
     /**
-     * Cek apakah bagian ini masih punya peminjaman mess/bungalow yang
-     * berjalan (belum ditolak & waktu_selesai belum lewat), dipakai
-     * sebagai guard sebelum bagian dinonaktifkan.
-     *
-     * Dicocokkan lewat nama (peminjaman.peminjam_department), bukan
-     * foreign key - kolom itu snapshot teks yang sengaja gak ikut
-     * berubah kalau nama bagian diedit, biar histori tetap akurat.
+     * Sebelumnya dipanggil di DepartmentController::update() tapi belum
+     * pernah didefinisikan - update status ke 'Tidak Aktif' selalu crash.
+     * 'Aktif' dicocokkan lewat nama (peminjam_department disimpan sebagai
+     * snapshot string di tabel peminjaman, bukan department_id).
      */
     public function hasActiveBorrowings(): bool
     {
         return MessBorrowing::where('peminjam_department', $this->name)
-            ->where('peminjaman_status', '!=', 'Ditolak')
-            ->where('waktu_selesai', '>=', now())
+            ->whereNotIn('peminjaman_status', ['Ditolak', 'Perlu Reschedule', 'Selesai'])
             ->exists();
+    }
+
+    public function hasAnyBorrowings(): bool
+    {
+        return MessBorrowing::where('peminjam_department', $this->name)->exists();
     }
 }

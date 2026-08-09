@@ -1,43 +1,49 @@
 @php
-    $canAccess = fn ($permission) => auth()->check();
+    $can = fn (string $menuKey, string $action = 'read') => \App\Support\AccessMatrix::can($menuKey, $action);
 
-    // Menu disusun dari route yang ada di web.php.
+    // Menu disusun dari route yang ada di web.php DAN AccessMatrix::can() per item -
+    // sebelumnya cuma dicek route-nya ada atau nggak, jadi menu yang izinnya
+    // dimatikan di halaman Management Akses tetap muncul di sidebar walaupun
+    // usernya sebenarnya gak boleh akses. 'can' merujuk ke menu_key di
+    // AccessMatrix::menus(), 'action' opsional (default 'read').
     $navMess = collect([
-        ['type' => 'link', 'label' => 'Dashboard', 'icon' => 'ti ti-home', 'url' => url('/dashboard'), 'active' => request()->is('dashboard')],
+        ['type' => 'link', 'label' => 'Dashboard', 'icon' => 'ti ti-home', 'url' => url('/dashboard'), 'active' => request()->is('dashboard'), 'can' => 'dashboard'],
 
         ['type' => 'group', 'label' => 'Master Data', 'icon' => 'ti ti-building', 'key' => 'master', 'children' => [
-            ['label' => 'Mess', 'route' => 'messes.index'],
-            ['label' => 'Bungalow', 'route' => 'bungalows.index'],
-            ['label' => 'Bagian', 'route' => 'departments.index'],
-            ['label' => 'Subbagian', 'route' => 'sub-departments.index'],
+            ['label' => 'Mess', 'route' => 'messes.index', 'can' => 'mess'],
+            ['label' => 'Bungalow', 'route' => 'bungalows.index', 'can' => 'bungalow'],
+            ['label' => 'Bagian', 'route' => 'departments.index', 'can' => 'departments'],
+            ['label' => 'Subbagian', 'route' => 'sub-departments.index', 'can' => 'sub-departments'],
         ]],
 
         ['type' => 'group', 'label' => 'Peminjaman Mess', 'icon' => 'ti ti-calendar-event', 'key' => 'peminjaman', 'children' => [
-            ['label' => 'Ajukan Peminjaman', 'route' => 'peminjaman.create'],
-            ['label' => 'Daftar Peminjaman', 'route' => 'peminjaman-mess.index'],
+            ['label' => 'Ajukan Peminjaman', 'route' => 'peminjaman.create', 'can' => 'peminjaman-mess', 'action' => 'create'],
+            ['label' => 'Daftar Peminjaman', 'route' => 'peminjaman-mess.index', 'can' => 'peminjaman-mess'],
         ]],
 
-        ['type' => 'link', 'label' => 'Approval', 'icon' => 'ti ti-checkup-list', 'route' => 'approval.index', 'show' => \Illuminate\Support\Facades\Route::has('approval.index') && $canAccess('approval')],
+        ['type' => 'link', 'label' => 'Approval', 'icon' => 'ti ti-checkup-list', 'route' => 'approval.index', 'can' => 'approval'],
 
         ['type' => 'group', 'label' => 'Laporan', 'icon' => 'ti ti-file-spreadsheet', 'key' => 'laporan', 'children' => [
-            ['label' => 'Export Excel', 'route' => 'peminjaman.export-excel'],
-            ['label' => 'Export PDF', 'route' => 'peminjaman.export-pdf'],
+            ['label' => 'Export Excel', 'route' => 'peminjaman.export-excel', 'can' => 'reports', 'action' => 'export'],
+            ['label' => 'Export PDF', 'route' => 'peminjaman.export-pdf', 'can' => 'reports', 'action' => 'export'],
         ]],
 
         ['type' => 'group', 'label' => 'Administrasi', 'icon' => 'ti ti-shield-lock', 'key' => 'administrasi', 'children' => [
             ['label' => 'Manajemen User', 'route' => 'users.index', 'can' => 'users'],
             ['label' => 'Management Akses', 'route' => 'role-access.index', 'can' => 'role-access'],
         ]],
-    ])->map(function ($item) {
+    ])->map(function ($item) use ($can) {
         if (($item['type'] ?? 'link') === 'group') {
             $item['children'] = collect($item['children'])
                 ->filter(fn ($c) => \Illuminate\Support\Facades\Route::has($c['route']))
-                ->filter(fn ($c) => !isset($c['can']) || \App\Support\AccessMatrix::can($c['can'], 'read'))
+                ->filter(fn ($c) => !isset($c['can']) || $can($c['can'], $c['action'] ?? 'read'))
                 ->values()->all();
             $item['show'] = count($item['children']) > 0;
             $item['active'] = collect($item['children'])->contains(fn ($c) => request()->routeIs($c['route']));
         } else {
-            $item['show'] = $item['show'] ?? true;
+            $routeOk = !isset($item['route']) || \Illuminate\Support\Facades\Route::has($item['route']);
+            $permOk = !isset($item['can']) || $can($item['can'], $item['action'] ?? 'read');
+            $item['show'] = ($item['show'] ?? true) && $routeOk && $permOk;
             $item['url'] = isset($item['route']) && \Illuminate\Support\Facades\Route::has($item['route']) 
                 ? route($item['route']) 
                 : ($item['url'] ?? '#');

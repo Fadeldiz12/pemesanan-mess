@@ -3,15 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
-use App\Models\Peminjaman;
+use App\Models\MessBorrowing;
 use App\Models\Rating;
+use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class RatingMessController extends Controller
 {
-    public function store(Request $request, Peminjaman $peminjaman): JsonResponse
+    public function store(Request $request, MessBorrowing $peminjaman): JsonResponse
     {
+        $this->authorizeAction($request, 'update');
+
         $user = $request->user();
 
         if ($peminjaman->created_by !== $user->id) {
@@ -62,5 +65,14 @@ class RatingMessController extends Controller
             'average' => round((float) $average, 2),
             'ratings' => $ratings,
         ]);
+    }
+
+    private function authorizeAction(Request $request, string $action): void
+    {
+        abort_unless(
+            AccessMatrix::can('peminjaman-mess', $action, $request->user()),
+            403,
+            "Anda tidak memiliki akses '{$action}' pada peminjaman."
+        );
     }
 }

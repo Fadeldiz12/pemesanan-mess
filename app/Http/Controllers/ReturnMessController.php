@@ -3,14 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
-use App\Models\Peminjaman;
+use App\Models\MessBorrowing;
 use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ReturnMessController extends Controller
 {
-    public function store(Request $request, Peminjaman $peminjaman): JsonResponse
+    public function store(Request $request, MessBorrowing $peminjaman): JsonResponse
     {
         $this->authorizeAction($request, 'update');
 

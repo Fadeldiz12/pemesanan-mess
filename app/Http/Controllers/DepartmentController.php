@@ -4,22 +4,29 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\Department;
+use App\Support\AccessMatrix;
 use Illuminate\Http\Request;
 
 class DepartmentController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $this->authorizeAction($request, 'read');
+
         return view('departments.index', ['departments' => Department::withCount('subDepartments')->latest()->paginate(15)]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
+        $this->authorizeAction($request, 'create');
+
         return view('departments.create', ['department' => new Department()]);
     }
 
     public function store(Request $request)
     {
+        $this->authorizeAction($request, 'create');
+
         $data = $this->validated($request);
         $data['code'] = $data['code'] ?: $this->nextCode();
         $data['created_by'] = auth()->id();
@@ -29,13 +36,17 @@ class DepartmentController extends Controller
         return redirect()->route('departments.index')->with('success', 'Bagian berhasil ditambahkan.');
     }
 
-    public function edit(Department $department)
+    public function edit(Request $request, Department $department)
     {
+        $this->authorizeAction($request, 'update');
+
         return view('departments.edit', compact('department'));
     }
 
     public function update(Request $request, Department $department)
     {
+        $this->authorizeAction($request, 'update');
+
         $data = $this->validated($request, $department->id);
         $data['code'] = $data['code'] ?: $department->code;
 
@@ -85,8 +96,10 @@ class DepartmentController extends Controller
         return redirect()->route('departments.index')->with('success', 'Bagian berhasil diperbarui.');
     }
 
-    public function destroy(Department $department)
+    public function destroy(Request $request, Department $department)
     {
+        $this->authorizeAction($request, 'delete');
+
         if ($department->subDepartments()->exists()) {
             return back()->with('warning', 'Bagian tidak bisa dihapus karena masih memiliki subbagian. Hapus subbagian terlebih dahulu.');
         }
@@ -95,6 +108,15 @@ class DepartmentController extends Controller
         $department->delete();
 
         return back()->with('success', 'Bagian berhasil dihapus.');
+    }
+
+    private function authorizeAction(Request $request, string $action): void
+    {
+        abort_unless(
+            AccessMatrix::can('departments', $action, $request->user()),
+            403,
+            "Anda tidak memiliki akses '{$action}' pada data Bagian."
+        );
     }
 
     private function validated(Request $request, ?int $id = null): array

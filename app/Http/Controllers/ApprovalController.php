@@ -3,13 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
-use App\Models\MessBorrowing; // Sesuaikan dengan nama model Peminjaman Mess milikmu (misal: MessBorrowing / PeminjamanMess)
+use App\Models\MessBorrowing;
+use App\Support\AccessMatrix;
 use Illuminate\Http\Request;
 
 class ApprovalController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $this->authorizeAction($request, 'read');
+
         $user = auth()->user();
         $role = $user->role;
 
@@ -20,10 +23,10 @@ class ApprovalController extends Controller
             default => null,
         };
 
-        $query = MessBorrowing::with(['mess', 'bungalow', 'user'])->latest();
+        $query = MessBorrowing::with(['bookable'])->latest();
 
         // Admin / Super Admin dapat melihat semua data approval yang pending
-        if (in_array($role, ['Super Admin', 'Administrator', 'Admin'])) {
+        if (in_array($role, ['Super Admin', 'Admin'])) {
             $query->whereIn('approval_status', ['Menunggu Staff', 'Menunggu Kasubbag', 'Menunggu Kabag']);
         } else {
             $query->when($status, fn ($q) => $q->where('approval_status', $status));
@@ -32,11 +35,11 @@ class ApprovalController extends Controller
                 $query->whereRaw('1 = 0');
             } elseif (in_array($role, ['Staff Approval', 'Kasubbag Approval'])) {
                 filled($user->department) && filled($user->sub_department)
-                    ? $query->where('borrower_department', $user->department)->where('borrower_sub_department', $user->sub_department)
+                    ? $query->where('peminjam_department', $user->department)->where('peminjam_sub_department', $user->sub_department)
                     : $query->whereRaw('1 = 0');
             } elseif ($role === 'Kabag Approval') {
                 filled($user->department)
-                    ? $query->where('borrower_department', $user->department)
+                    ? $query->where('peminjam_department', $user->department)
                     : $query->whereRaw('1 = 0');
             }
         }
@@ -64,15 +67,15 @@ class ApprovalController extends Controller
             $prefix . '_approved_at' => now(),
             $prefix . '_approval_note' => $note,
             'approval_status' => $next,
-            'borrowing_status' => $level === 'Kabag' ? 'Disetujui' : $borrowing->borrowing_status,
+            'peminjaman_status' => $level === 'Kabag' ? 'Disetujui' : $borrowing->peminjaman_status,
             'approved_by' => $level === 'Kabag' ? auth()->id() : $borrowing->approved_by,
         ]);
 
-        ActivityLog::record('Approve Mess ' . $level, 'Approval', $borrowing->id, $note);
+        ActivityLog::record(auth()->user(), 'Approve Mess ' . $level, 'Approval', (string) $borrowing->id, $note);
 
         if ($level === 'Kabag') {
             $remainingApproval = MessBorrowing::where('approval_status', 'Menunggu Kabag')
-                ->where('borrower_department', auth()->user()->department)
+                ->where('peminjam_department', auth()->user()->department)
                 ->count();
 
             if ($remainingApproval > 0) {
@@ -96,16 +99,16 @@ class ApprovalController extends Controller
             $prefix . '_approved_at' => now(),
             $prefix . '_approval_note' => $note,
             'approval_status' => 'Ditolak',
-            'borrowing_status' => 'Ditolak',
+            'peminjaman_status' => 'Ditolak',
             'rejected_by' => auth()->id(),
             'rejected_level' => $level,
         ]);
 
-        ActivityLog::record('Reject Mess ' . $level, 'Approval', $borrowing->id, $note);
+        ActivityLog::record(auth()->user(), 'Reject Mess ' . $level, 'Approval', (string) $borrowing->id, $note);
 
         if ($level === 'Kabag') {
             $remainingApproval = MessBorrowing::where('approval_status', 'Menunggu Kabag')
-                ->where('borrower_department', auth()->user()->department)
+                ->where('peminjam_department', auth()->user()->department)
                 ->count();
 
             if ($remainingApproval > 0) {
@@ -119,10 +122,12 @@ class ApprovalController extends Controller
 
     private function authorizeLevel(MessBorrowing $borrowing, string $level): void
     {
+        abort_unless(AccessMatrix::can('approval', 'approve'), 403, "Anda tidak memiliki akses 'approve' pada Approval.");
+
         $expected = 'Menunggu ' . $level;
         abort_unless($borrowing->approval_status === $expected, 422, 'Approval harus berurutan.');
-        
-        $isAdmin = in_array(auth()->user()->role, ['Super Admin', 'Administrator', 'Admin']);
+
+        $isAdmin = in_array(auth()->user()->role, ['Super Admin', 'Admin']);
         abort_unless($isAdmin || auth()->user()->role === $level . ' Approval', 403);
 
         if (!$isAdmin) {
@@ -130,14 +135,28 @@ class ApprovalController extends Controller
                 abort_unless(
                     filled(auth()->user()->department)
                     && filled(auth()->user()->sub_department)
-                    && $borrowing->borrower_department === auth()->user()->department
-                    && $borrowing->borrower_sub_department === auth()->user()->sub_department,
+                    && $borrowing->peminjam_department === auth()->user()->department
+                    && $borrowing->peminjam_sub_department === auth()->user()->sub_department,
                     403,
                     'Anda hanya dapat melakukan approval pengajuan dari bagian dan subbagian yang sama.'
                 );
             } else {
-                abort_unless(filled(auth()->user()->department) && $borrowing->borrower_department === auth()->user()->department, 403, 'Anda hanya dapat melakukan approval pengajuan dari bagian yang sama.');
+                abort_unless(filled(auth()->user()->department) && $borrowing->peminjam_department === auth()->user()->department, 403, 'Anda hanya dapat melakukan approval pengajuan dari bagian yang sama.');
             }
         }
+    }
+
+    /**
+     * Sebelumnya 'index' gak dicek AccessMatrix::can() sama sekali (cuma
+     * dicek role match di dalam query), jadi menu 'approval' yang dimatikan
+     * di halaman Management Akses gak beneran memblokir siapa pun.
+     */
+    private function authorizeAction(Request $request, string $action): void
+    {
+        abort_unless(
+            AccessMatrix::can('approval', $action, $request->user()),
+            403,
+            "Anda tidak memiliki akses '{$action}' pada Approval."
+        );
     }
 }

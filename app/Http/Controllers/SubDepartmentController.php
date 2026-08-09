@@ -5,17 +5,22 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\Department;
 use App\Models\SubDepartment;
+use App\Support\AccessMatrix;
 use Illuminate\Http\Request;
 
 class SubDepartmentController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $this->authorizeAction($request, 'read');
+
         return view('sub_departments.index', ['subDepartments' => SubDepartment::with('department')->latest()->paginate(15)]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
+        $this->authorizeAction($request, 'create');
+
         return view('sub_departments.create', [
             'subDepartment' => new SubDepartment(),
             'departments' => $this->departments(),
@@ -24,6 +29,8 @@ class SubDepartmentController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorizeAction($request, 'create');
+
         $data = $this->validated($request);
         $data['code'] = $data['code'] ?: $this->nextCode();
         $data['created_by'] = auth()->id();
@@ -33,8 +40,10 @@ class SubDepartmentController extends Controller
         return redirect()->route('sub-departments.index')->with('success', 'Subbagian berhasil ditambahkan.');
     }
 
-    public function edit(SubDepartment $subDepartment)
+    public function edit(Request $request, SubDepartment $subDepartment)
     {
+        $this->authorizeAction($request, 'update');
+
         return view('sub_departments.edit', [
             'subDepartment' => $subDepartment,
             'departments' => $this->departments(),
@@ -43,6 +52,8 @@ class SubDepartmentController extends Controller
 
     public function update(Request $request, SubDepartment $subDepartment)
     {
+        $this->authorizeAction($request, 'update');
+
         $data = $this->validated($request, $subDepartment->id);
         $data['code'] = $data['code'] ?: $subDepartment->code;
 
@@ -58,8 +69,10 @@ class SubDepartmentController extends Controller
         return redirect()->route('sub-departments.index')->with('success', 'Subbagian berhasil diperbarui.');
     }
 
-    public function destroy(SubDepartment $subDepartment)
+    public function destroy(Request $request, SubDepartment $subDepartment)
     {
+        $this->authorizeAction($request, 'delete');
+
         if ($subDepartment->hasAnyBorrowings()) {
             return back()->with('warning', 'Subbagian tidak bisa dihapus karena memiliki riwayat peminjaman mess/bungalow.');
         }
@@ -68,6 +81,15 @@ class SubDepartmentController extends Controller
         $subDepartment->delete();
 
         return back()->with('success', 'Subbagian berhasil dihapus.');
+    }
+
+    private function authorizeAction(Request $request, string $action): void
+    {
+        abort_unless(
+            AccessMatrix::can('sub-departments', $action, $request->user()),
+            403,
+            "Anda tidak memiliki akses '{$action}' pada data Subbagian."
+        );
     }
 
     private function validated(Request $request, ?int $id = null): array

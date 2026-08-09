@@ -28,7 +28,7 @@ class Rating extends Model
 
     public function peminjaman(): BelongsTo
     {
-        return $this->belongsTo(Peminjaman::class);
+        return $this->belongsTo(MessBorrowing::class);
     }
 
     public function bookable(): MorphTo

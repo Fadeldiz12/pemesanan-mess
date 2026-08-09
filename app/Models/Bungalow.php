@@ -29,7 +29,7 @@ class Bungalow extends Model
 
     public function peminjaman(): MorphMany
     {
-        return $this->morphMany(Peminjaman::class, 'bookable');
+        return $this->morphMany(MessBorrowing::class, 'bookable');
     }
 
     public function ratings(): MorphMany

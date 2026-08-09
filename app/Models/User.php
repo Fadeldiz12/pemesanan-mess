@@ -35,7 +35,7 @@ class User extends Authenticatable
 
     public function peminjaman(): HasMany
     {
-        return $this->hasMany(Peminjaman::class, 'created_by');
+        return $this->hasMany(MessBorrowing::class, 'created_by');
     }
 
     public function ratings(): HasMany

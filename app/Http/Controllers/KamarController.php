@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Kamar;
 use App\Models\Mess;
-use App\Models\Peminjaman;
+use App\Models\MessBorrowing;
 use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -82,7 +82,7 @@ class KamarController extends Controller
         $this->authorizeAction($request, 'delete');
         abort_if($kamar->mess_id !== $mess->id, 404);
 
-        $hasActiveBooking = Peminjaman::where('bookable_type', Kamar::class)
+        $hasActiveBooking = MessBorrowing::where('bookable_type', Kamar::class)
             ->where('bookable_id', $kamar->id)
             ->whereNotIn('peminjaman_status', ['Ditolak', 'Perlu Reschedule', 'Selesai'])
             ->exists();

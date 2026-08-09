@@ -24,30 +24,18 @@ class SubDepartment extends Model
         return $this->belongsTo(Department::class);
     }
 
-    /**
-     * Sama seperti Department::hasActiveBorrowings(), tapi dicocokkan lewat
-     * 2 kolom (peminjam_department + peminjam_sub_department) karena nama
-     * subbagian cuma unik per-bagian (mis. "Umum" dipakai di semua bagian),
-     * bukan unik secara global.
-     */
     public function hasActiveBorrowings(): bool
     {
-        return MessBorrowing::where('peminjam_department', $this->department->name)
-            ->where('peminjam_sub_department', $this->name)
-            ->where('peminjaman_status', '!=', 'Ditolak')
-            ->where('waktu_selesai', '>=', now())
+        return MessBorrowing::where('peminjam_sub_department', $this->name)
+            ->where('peminjam_department', $this->department?->name)
+            ->whereNotIn('peminjaman_status', ['Ditolak', 'Perlu Reschedule', 'Selesai'])
             ->exists();
     }
 
-    /**
-     * Beda dari hasActiveBorrowings(): ini cek riwayat APA PUN (status apa
-     * aja, kapan aja), dipakai sebagai guard sebelum subbagian dihapus -
-     * biar data historis peminjaman gak jadi yatim piatu.
-     */
     public function hasAnyBorrowings(): bool
     {
-        return MessBorrowing::where('peminjam_department', $this->department->name)
-            ->where('peminjam_sub_department', $this->name)
+        return MessBorrowing::where('peminjam_sub_department', $this->name)
+            ->where('peminjam_department', $this->department?->name)
             ->exists();
     }
 }

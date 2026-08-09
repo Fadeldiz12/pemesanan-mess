@@ -13,11 +13,19 @@ use Illuminate\Support\Facades\Schema;
  * di MessBorrowing juga filter User::where('sub_department', ...) untuk
  * tahap approval Kasubbag, jadi kolom ini wajib ada supaya alur approval
  * jenjang Kasubbag bisa menemukan approver-nya.
+ *
+ * Dibungkus Schema::hasColumn() supaya aman dijalankan walau kolomnya
+ * sudah lebih dulu ada di database (mis. sempat ditambah manual di luar
+ * migration ini sebelum migration ini benar-benar dibuat/dijalankan).
  */
 return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasColumn('users', 'sub_department')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
             $table->string('sub_department')->nullable()->after('department');
         });
@@ -25,6 +33,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! Schema::hasColumn('users', 'sub_department')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
             $table->dropColumn('sub_department');
         });
