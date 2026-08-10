@@ -4,69 +4,95 @@
 @section('header_title', 'Transaksi Peminjaman Mess')
 
 @php
-    // Warna badge per status. Sesuaikan/lengkapi daftar status sesuai yang dipakai di controller.
+    // Warna badge per status. 'approval_status' dipakai selama masih berjalan
+    // (Menunggu X / Disetujui / Ditolak / Perlu Reschedule), tapi begitu
+    // peminjaman_status sudah 'Selesai' (dikonfirmasi kembali via
+    // ReturnMessController), itu yang ditampilkan - approval_status gak pernah
+    // diupdate lagi ke 'Selesai' jadi kalau dibiarkan bakal nyangkut di 'Disetujui'.
     $statusColor = [
         'Menunggu Staff' => 'warning',
-        'Menunggu Kasubag' => 'warning',
+        'Menunggu Kasubbag' => 'warning',
         'Menunggu Kabag' => 'warning',
         'Menunggu Admin' => 'warning',
         'Disetujui' => 'success',
+        'Selesai' => 'secondary',
         'Ditolak' => 'danger',
         'Perlu Reschedule' => 'primary',
     ];
 
-    // Data contoh — ganti dengan $peminjaman dari controller (paginated collection).
-    $peminjaman = $peminjaman ?? collect([
-        (object) [
-            'id' => 1,
-            'pemohon' => 'Budi Santoso',
-            'jabatan' => 'Staff',
-            'unit' => 'Mess Direksi A',
-            'tanggal' => '12 Agu - 14 Agu 2026',
-            'status' => 'Menunggu Kasubag',
-        ],
-    ]);
+    $canCreate = \App\Support\AccessMatrix::can('peminjaman-mess', 'create');
 @endphp
 
 @section('content')
 <div class="card">
     <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h2 class="fs-5 mb-0">Data Peminjaman</h2>
-        <a href="{{ route('peminjaman.create') }}" class="btn btn-primary btn-sm">
-            <i class="ti ti-plus me-1"></i>Buat Peminjaman
-        </a>
+        @if($canCreate)
+            <a href="{{ route('peminjaman.create') }}" class="btn btn-primary btn-sm">
+                <i class="ti ti-plus me-1"></i>Buat Peminjaman
+            </a>
+        @endif
+    </div>
+
+    <div class="card-body border-bottom py-3">
+        <form method="GET" action="{{ route('peminjaman-mess.index') }}" class="d-flex gap-2 flex-wrap">
+            <input type="text" name="search" value="{{ request('search') }}" class="form-control form-control-sm" style="max-width:280px" placeholder="Cari kode, pemohon, atau keperluan...">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">
+                <i class="ti ti-search me-1"></i>Cari
+            </button>
+            @if(request('search'))
+                <a href="{{ route('peminjaman-mess.index') }}" class="btn btn-light btn-sm">Reset</a>
+            @endif
+        </form>
     </div>
 
     <div class="table-responsive">
         <table class="table mb-0 table-hover table-accordion">
             <thead class="table-light">
                 <tr>
+                    <th>Kode</th>
                     <th>Pemohon</th>
-                    <th>Jabatan</th>
                     <th>Unit</th>
-                    <th>Tanggal</th>
+                    <th>Jadwal</th>
                     <th>Status</th>
                     <th class="text-center">Aksi</th>
                 </tr>
             </thead>
             <tbody>
-                @forelse($peminjaman as $item)
+                @forelse($peminjamans as $item)
+                    @php
+                        // bookable_type nyimpen nama class penuh (App\Models\Kamar /
+                        // App\Models\Bungalow) - class_basename buat label singkatnya.
+                        // ?-> jaga-jaga kalau unit aslinya sudah dihapus (soft delete).
+                        $unitLabel = class_basename($item->bookable_type);
+                        $unitName = $item->bookable?->nama_kamar ?? $item->bookable?->nama ?? '(unit terhapus)';
+                        $displayStatus = $item->peminjaman_status === 'Selesai' ? 'Selesai' : $item->approval_status;
+                    @endphp
                     <tr>
-                        <td class="toggle-cell" data-label="Pemohon">
-                            {{ $item->pemohon }}
+                        <td class="toggle-cell" data-label="Kode">
+                            <span class="fw-semibold text-primary">{{ $item->peminjaman_code }}</span>
                             <i class="ti ti-chevron-down toggle-icon d-lg-none"></i>
                         </td>
-                        <td class="detail-data" data-label="Jabatan">{{ $item->jabatan }}</td>
-                        <td class="detail-data" data-label="Unit">{{ $item->unit }}</td>
-                        <td data-label="Tanggal">{{ $item->tanggal }}</td>
+                        <td class="detail-data" data-label="Pemohon">
+                            {{ $item->peminjam_name }}
+                            <div class="text-secondary small">{{ $item->peminjam_role }}</div>
+                        </td>
+                        <td class="detail-data" data-label="Unit">
+                            <span class="badge bg-info-subtle text-info border border-info-subtle">{{ $unitLabel }}</span>
+                            {{ $unitName }}
+                        </td>
+                        <td data-label="Jadwal">
+                            {{ $item->waktu_mulai->format('d M Y, H:i') }} &ndash;
+                            {{ $item->waktu_selesai->format('d M Y, H:i') }}
+                        </td>
                         <td data-label="Status">
-                            <span class="badge bg-{{ $statusColor[$item->status] ?? 'secondary' }}-subtle text-{{ $statusColor[$item->status] ?? 'secondary' }}">
-                                {{ $item->status }}
+                            <span class="badge bg-{{ $statusColor[$displayStatus] ?? 'secondary' }}-subtle text-{{ $statusColor[$displayStatus] ?? 'secondary' }}">
+                                {{ $displayStatus }}
                             </span>
                         </td>
                         <td class="action-data" data-label="Aksi">
                             <div>
-                                <a href="{{ route('peminjaman.show', $item->id) }}" class="btn btn-light btn-sm">
+                                <a href="{{ route('peminjaman.show', $item) }}" class="btn btn-light btn-sm">
                                     <i class="ti ti-eye me-1"></i>Detail
                                 </a>
                             </div>
@@ -78,5 +104,11 @@
             </tbody>
         </table>
     </div>
+
+    @if($peminjamans->hasPages())
+        <div class="card-footer bg-white">
+            {{ $peminjamans->onEachSide(1)->links() }}
+        </div>
+    @endif
 </div>
 @endsection

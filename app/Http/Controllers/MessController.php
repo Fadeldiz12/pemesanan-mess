@@ -39,15 +39,11 @@ class MessController extends Controller
         return view('messes.index', compact('messes'));
     }
 
-    public function show(Request $request, Mess $mess): View|JsonResponse
+    public function create(Request $request): View
     {
-        $mess->load(['kamars' => fn ($q) => $q->orderBy('nama_kamar')]);
+        $this->authorizeAction($request, 'create');
 
-        if ($request->wantsJson()) {
-            return response()->json($mess);
-        }
-
-        return view('messes.show', compact('mess'));
+        return view('messes.create');
     }
 
     public function store(Request $request): JsonResponse|RedirectResponse
@@ -75,6 +71,24 @@ class MessController extends Controller
         }
 
         return redirect()->route('messes.index')->with('success', 'Mess berhasil ditambahkan.');
+    }
+
+    public function show(Request $request, Mess $mess): View|JsonResponse
+    {
+        $mess->load(['kamars' => fn ($q) => $q->orderBy('nama_kamar')]);
+
+        if ($request->wantsJson()) {
+            return response()->json($mess);
+        }
+
+        return view('messes.show', compact('mess'));
+    }
+
+    public function edit(Request $request, Mess $mess): View
+    {
+        $this->authorizeAction($request, 'update');
+
+        return view('messes.edit', compact('mess'));
     }
 
     public function update(Request $request, Mess $mess): JsonResponse|RedirectResponse

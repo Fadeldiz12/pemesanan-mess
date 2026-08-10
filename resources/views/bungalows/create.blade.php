@@ -43,9 +43,9 @@
                             <i class="ti ti-info-circle" data-bs-toggle="tooltip" title="Jabatan minimal yang boleh memesan unit ini"></i>
                         </label>
                         <select id="minimum_jabatan" name="minimum_jabatan" class="form-select">
-                            <option value="Staff">Staff</option>
-                            <option value="Kasubag">Kasubag</option>
-                            <option value="Kabag">Kabag</option>
+                            @foreach ($jabatanLevels as $jabatan)
+                                <option value="{{ $jabatan }}" @selected(old('minimum_jabatan') === $jabatan)>{{ $jabatan }}</option>
+                            @endforeach
                         </select>
                     </div>
                     <div class="col-12 col-md-4">

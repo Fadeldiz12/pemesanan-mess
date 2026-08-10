@@ -7,6 +7,7 @@ use App\Models\ActivityLog;
 use App\Models\Bungalow;
 use App\Support\AccessMatrix;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class BungalowController extends Controller
 {
@@ -27,7 +28,7 @@ class BungalowController extends Controller
     {
         $this->authorizeAction($request, 'create');
 
-        return view('bungalows.create');
+        return view('bungalows.create', ['jabatanLevels' => AccessMatrix::roles()]);
     }
 
     public function store(Request $request)
@@ -58,7 +59,7 @@ class BungalowController extends Controller
     {
         $this->authorizeAction($request, 'update');
 
-        return view('bungalows.edit', compact('bungalow'));
+        return view('bungalows.edit', ['bungalow' => $bungalow, 'jabatanLevels' => AccessMatrix::roles()]);
     }
 
     public function update(Request $request, Bungalow $bungalow)
@@ -104,7 +105,7 @@ class BungalowController extends Controller
             'deskripsi' => ['nullable', 'string'],
             'foto' => ['nullable', 'image', 'max:2048'],
             'kapasitas' => ['required', 'integer', 'min:1'],
-            'minimum_jabatan' => ['required', 'in:Staff,Kasubag,Kabag'],
+            'minimum_jabatan' => ['required', Rule::in(AccessMatrix::roles())],
             'status' => ['required', 'in:aktif,nonaktif'],
         ]);
     }

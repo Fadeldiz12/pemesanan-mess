@@ -27,6 +27,8 @@ class PeminjamanMessController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorizeAction($request, 'read');
+
         $query = MessBorrowing::with(['bookable', 'rating']);
 
         // Fitur pencarian untuk menyesuaikan dengan form search di view
@@ -50,7 +52,10 @@ class PeminjamanMessController extends Controller
             }
         }
 
-        $peminjamans = $query->orderByDesc('created_by')->paginate(10);
+        // Sebelumnya orderByDesc('created_by') - itu ngurutin berdasarkan ID user
+        // yang bikin, bukan berdasarkan kapan pengajuannya dibuat. ->latest()
+        // (created_at) yang seharusnya dipakai untuk "pengajuan terbaru duluan".
+        $peminjamans = $query->latest()->paginate(10);
 
         return view('peminjaman-mess.index', compact('peminjamans'));
     }
@@ -60,6 +65,8 @@ class PeminjamanMessController extends Controller
      */
     public function create(Request $request)
     {
+        $this->authorizeAction($request, 'create');
+
         $eligibleJabatan = $this->eligibleJabatan($request->user()->role);
 
         // Cuma kamar yang tersedia & sesuai/di bawah jabatan pemohon yang ditampilkan,
@@ -71,7 +78,10 @@ class PeminjamanMessController extends Controller
 
         $messById = Mess::where('status', 'Aktif')->pluck('nama', 'id');
 
-        $bungalows = Bungalow::where('status', 'Aktif')
+        // Bungalow pakai konvensi status huruf kecil ('aktif'/'nonaktif'), beda
+        // dari Mess yang 'Aktif'/'Nonaktif' - sebelumnya di-query 'Aktif' (besar)
+        // di sini, jadi bungalow gak akan pernah kena filter ini.
+        $bungalows = Bungalow::where('status', 'aktif')
             ->whereIn('minimum_jabatan', $eligibleJabatan)
             ->get();
 
@@ -91,6 +101,8 @@ class PeminjamanMessController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorizeAction($request, 'create');
+
         $user = $request->user();
 
         // Normalisasi tipe unit ke huruf kecil
@@ -435,7 +447,7 @@ class PeminjamanMessController extends Controller
             throw ValidationException::withMessages(['unit_id' => 'Kamar sedang tidak tersedia.']);
         }
 
-        if ($unit instanceof Bungalow && $unit->status !== 'Aktif') {
+        if ($unit instanceof Bungalow && $unit->status !== 'aktif') {
             throw ValidationException::withMessages(['unit_id' => 'Bungalow sedang tidak aktif.']);
         }
     }
