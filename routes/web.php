@@ -97,4 +97,7 @@ Route::middleware(['auth'])->group(function () {
     // Rating & Ulasan
     Route::post('/peminjaman-mess/{peminjaman}/rating', [RatingMessController::class, 'store'])->name('rating.store');
     Route::get('/units/{unitType}/{unitId}/ratings', [RatingMessController::class, 'forUnit'])->name('rating.for-unit');
+
+    // Pengembalian
+    Route::post('/peminjaman-mess/{peminjaman}/return', [ReturnMessController::class, 'store'])->name('peminjaman.return');
 });

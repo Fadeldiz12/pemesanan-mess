@@ -136,7 +136,8 @@ class MessBorrowing extends Model
 
     public function rating(): HasOne
     {
-        return $this->hasOne(Rating::class);
+        // 👇 PERBAIKAN DI SINI: Menambahkan foreign key dan local key secara eksplisit 👇
+        return $this->hasOne(Rating::class, 'peminjaman_id', 'id');
     }
 
     public function pemohon(): BelongsTo

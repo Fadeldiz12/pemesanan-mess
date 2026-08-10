@@ -52,9 +52,6 @@ class PeminjamanMessController extends Controller
             }
         }
 
-        // Sebelumnya orderByDesc('created_by') - itu ngurutin berdasarkan ID user
-        // yang bikin, bukan berdasarkan kapan pengajuannya dibuat. ->latest()
-        // (created_at) yang seharusnya dipakai untuk "pengajuan terbaru duluan".
         $peminjamans = $query->latest()->paginate(10);
 
         return view('peminjaman-mess.index', compact('peminjamans'));
@@ -78,9 +75,6 @@ class PeminjamanMessController extends Controller
 
         $messById = Mess::where('status', 'Aktif')->pluck('nama', 'id');
 
-        // Bungalow pakai konvensi status huruf kecil ('aktif'/'nonaktif'), beda
-        // dari Mess yang 'Aktif'/'Nonaktif' - sebelumnya di-query 'Aktif' (besar)
-        // di sini, jadi bungalow gak akan pernah kena filter ini.
         $bungalows = Bungalow::where('status', 'aktif')
             ->whereIn('minimum_jabatan', $eligibleJabatan)
             ->get();
@@ -132,8 +126,8 @@ class PeminjamanMessController extends Controller
                 'bookable_id' => $unit->id,
                 'waktu_mulai' => $validated['waktu_mulai'],
                 'waktu_selesai' => $validated['waktu_selesai'],
-                'peminjam_department' => $user->department,
-                'peminjam_sub_department' => $user->sub_department,
+                'peminjam_department' => $user->department ?? '-',
+                'peminjam_sub_department' => $user->sub_department ?? '-',
                 'peminjam_role' => $user->role,
                 'peminjam_name' => $user->name,
                 'peminjam_username' => $user->username,
