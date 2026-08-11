@@ -17,12 +17,14 @@ class ReturnMessController extends Controller
         $user = $request->user();
 
         if ($peminjaman->peminjaman_status !== 'Disetujui') {
-            return response()->json(['message' => 'Hanya peminjaman berstatus Disetujui yang dapat dikonfirmasi pengembaliannya.'], 422);
+            return response()->json([
+                'message' => 'Hanya peminjaman berstatus Disetujui yang dapat dikonfirmasi pengembaliannya.',
+            ], 422);
         }
 
         $validated = $request->validate([
             'return_note' => ['nullable', 'string', 'max:1000'],
-            'return_evidence' => ['nullable', 'image', 'max:2048'],
+            'return_evidence' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:2048'],
         ]);
 
         if ($request->hasFile('return_evidence')) {
@@ -37,7 +39,13 @@ class ReturnMessController extends Controller
             'peminjaman_status' => 'Selesai',
         ]);
 
-        ActivityLog::record($user, 'return', 'peminjaman_mess', (string) $peminjaman->id, "Konfirmasi pengembalian {$peminjaman->peminjaman_code}");
+        // ActivityLog::record(
+        //     $user, 
+        //     'return', 
+        //     'peminjaman_mess', 
+        //     (string) $peminjaman->id, 
+        //     "Konfirmasi pengembalian {$peminjaman->peminjaman_code}"
+        // );
 
         return response()->json($peminjaman->fresh());
     }

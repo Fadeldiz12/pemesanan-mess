@@ -7,6 +7,7 @@ use App\Http\Controllers\BungalowController;
 use App\Http\Controllers\KamarController;
 use App\Http\Controllers\MessController;
 use App\Http\Controllers\RatingMessController;
+use App\Http\Controllers\ReturnMessController;
 use App\Http\Controllers\PeminjamanMessController;
 use App\Http\Controllers\RoleAccessController;
 use App\Http\Controllers\SubDepartmentController;

@@ -116,8 +116,25 @@ class PeminjamanMessController extends Controller
         $bookableClass = self::BOOKABLE_MAP[$validated['unit_type']];
         $unit = $bookableClass::findOrFail($validated['unit_id']);
 
+        // 1. Validasi status ketersediaan unit di Master Data
         $this->assertUnitAvailable($unit);
+
+        // 2. Validasi kelayakan jabatan
         $this->assertJabatanEligible($unit, $user->role);
+
+        // 3. Validasi pencegahan double booking pada tanggal/jam yang sama
+        $isOverlapping = MessBorrowing::bentrok(
+            $bookableClass,
+            $unit->id,
+            $validated['waktu_mulai'],
+            $validated['waktu_selesai']
+        )->exists();
+
+        if ($isOverlapping) {
+            throw ValidationException::withMessages([
+                'waktu_mulai' => 'Mohon maaf, unit ini sudah dipesan pada jadwal tersebut. Silakan pilih waktu lain atau unit yang berbeda.',
+            ]);
+        }
 
         $peminjaman = DB::transaction(function () use ($validated, $bookableClass, $unit, $user) {
             return MessBorrowing::create([
