@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Kamar;
 use App\Models\Mess;
+use App\Models\MessBorrowing;
 use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -47,7 +48,7 @@ class KamarController extends Controller
 
         return view('kamars.create', [
             'mess' => $mess,
-            'jabatanLevels' => AccessMatrix::roles(),
+            'jabatanLevels' => array_keys(MessBorrowing::JABATAN_TIER),
             'statusOptions' => Kamar::STATUS_KETERSEDIAAN,
         ]);
     }
@@ -63,7 +64,7 @@ class KamarController extends Controller
             ],
             'kapasitas' => ['required', 'integer', 'min:1'],
             'status_ketersediaan' => ['required', Rule::in(Kamar::STATUS_KETERSEDIAAN)],
-            'minimum_jabatan' => ['required', 'string', Rule::in(AccessMatrix::roles())],
+            'minimum_jabatan' => ['required', 'string', Rule::in(array_keys(MessBorrowing::JABATAN_TIER))],
             'deskripsi' => ['nullable', 'string'],
             'foto' => ['nullable', 'image', 'max:2048'],
         ]);
@@ -102,7 +103,7 @@ class KamarController extends Controller
 
         return view('kamars.edit', [
             'kamar' => $kamar,
-            'jabatanLevels' => AccessMatrix::roles(),
+            'jabatanLevels' => array_keys(MessBorrowing::JABATAN_TIER),
             'statusOptions' => Kamar::STATUS_KETERSEDIAAN,
         ]);
     }
@@ -118,7 +119,7 @@ class KamarController extends Controller
             ],
             'kapasitas' => ['sometimes', 'required', 'integer', 'min:1'],
             'status_ketersediaan' => ['sometimes', 'required', Rule::in(Kamar::STATUS_KETERSEDIAAN)],
-            'minimum_jabatan' => ['sometimes', 'required', 'string', Rule::in(AccessMatrix::roles())],
+            'minimum_jabatan' => ['sometimes', 'required', 'string', Rule::in(array_keys(MessBorrowing::JABATAN_TIER))],
             'deskripsi' => ['nullable', 'string'],
             'foto' => ['nullable', 'image', 'max:2048'],
         ]);

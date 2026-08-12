@@ -31,7 +31,7 @@
             <label for="minimum_jabatan" class="form-label">Minimum Jabatan</label>
             <select name="minimum_jabatan" id="minimum_jabatan" class="form-select" required>
                 @foreach ($jabatanLevels as $jabatan)
-                    <option value="{{ $jabatan }}" @selected(old('minimum_jabatan', 'User') === $jabatan)>{{ $jabatan }}</option>
+                    <option value="{{ $jabatan }}" @selected(old('minimum_jabatan', 'Staff') === $jabatan)>{{ $jabatan }}</option>
                 @endforeach
             </select>
             <div class="form-text">Jabatan minimum yang boleh mengajukan peminjaman kamar ini.</div>

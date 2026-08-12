@@ -24,6 +24,41 @@ class MessBorrowing extends Model
         'Super Admin' => 6,
     ];
 
+    /**
+     * Hirarki jabatan KHUSUS buat kelayakan pemesanan Kamar/Bungalow
+     * (minimum_jabatan) - SENGAJA dipisah dari RANK_ORDER di atas.
+     * RANK_ORDER itu soal urutan APPROVAL (skip approval diri sendiri di
+     * booted(), lihat README poin 10.1), sedangkan ini soal "boleh pesan
+     * ruangan level apa" (README bagian 5) - dua hal yang beda meski
+     * sama-sama "hirarki jabatan".
+     *
+     * Nilai minimum_jabatan di Kamar/Bungalow cuma 3: Staff/Kasubag/Kabag
+     * (persis istilah di README), BUKAN 6 nama role sistem. 'Admin' bukan
+     * pilihan minimum_jabatan (gak ada ruangan yang "khusus Admin"), tapi
+     * Admin/Super Admin tetap bisa pesan SEMUA ruangan karena tier mereka
+     * disamakan ke Kabag (tier tertinggi yang ada) lewat ROLE_TO_JABATAN.
+     */
+    public const JABATAN_TIER = [
+        'Staff' => 1,
+        'Kasubag' => 2,
+        'Kabag' => 3,
+    ];
+
+    /**
+     * role sistem (users.role) -> jabatan efektif buat kelayakan pemesanan.
+     * Role yang gak ada di daftar ini (role custom baru, 'Supir', dst)
+     * otomatis dianggap 'Staff' (tingkat paling rendah) lewat fallback di
+     * eligibleJabatanTier().
+     */
+    public const ROLE_TO_JABATAN = [
+        'Super Admin' => 'Kabag',
+        'Admin' => 'Kabag',
+        'Kabag Approval' => 'Kabag',
+        'Kasubbag Approval' => 'Kasubag',
+        'Staff Approval' => 'Staff',
+        'User' => 'Staff',
+    ];
+
     private const STAGE_ORDER = ['staff', 'kasubbag', 'kabag', 'admin'];
 
     protected $guarded = ['id'];
@@ -99,6 +134,19 @@ class MessBorrowing extends Model
         return self::RANK_ORDER[$this->peminjam_role] ?? self::RANK_ORDER['User'];
     }
 
+    /**
+     * Tier jabatan efektif (1=Staff, 2=Kasubag, 3=Kabag) dari sebuah role
+     * sistem, dipakai buat cek kelayakan minimum_jabatan Kamar/Bungalow.
+     * Role apa pun yang gak eksplisit dipetakan di ROLE_TO_JABATAN (role
+     * custom, 'Supir', dll) jatuh ke tier 'Staff' (paling rendah).
+     */
+    public static function eligibleJabatanTier(string $role): int
+    {
+        $jabatan = self::ROLE_TO_JABATAN[$role] ?? 'Staff';
+
+        return self::JABATAN_TIER[$jabatan] ?? self::JABATAN_TIER['Staff'];
+    }
+
     public function outranks(self $other): bool
     {
         return $this->rankLevel() > $other->rankLevel();
@@ -136,8 +184,7 @@ class MessBorrowing extends Model
 
     public function rating(): HasOne
     {
-        // 👇 PERBAIKAN DI SINI: Menambahkan foreign key dan local key secara eksplisit 👇
-        return $this->hasOne(Rating::class, 'peminjaman_id', 'id');
+        return $this->hasOne(Rating::class);
     }
 
     public function pemohon(): BelongsTo

@@ -52,6 +52,9 @@ class PeminjamanMessController extends Controller
             }
         }
 
+        // Sebelumnya orderByDesc('created_by') - itu ngurutin berdasarkan ID user
+        // yang bikin, bukan berdasarkan kapan pengajuannya dibuat. ->latest()
+        // (created_at) yang seharusnya dipakai untuk "pengajuan terbaru duluan".
         $peminjamans = $query->latest()->paginate(10);
 
         return view('peminjaman-mess.index', compact('peminjamans'));
@@ -66,15 +69,24 @@ class PeminjamanMessController extends Controller
 
         $eligibleJabatan = $this->eligibleJabatan($request->user()->role);
 
-        // Cuma kamar yang tersedia & sesuai/di bawah jabatan pemohon yang ditampilkan,
-        // dikelompokkan per mess biar dropdown kamar bisa mengikuti mess yang dipilih.
-        $kamarsByMess = Kamar::where('status_ketersediaan', 'Tersedia')
+        // status_ketersediaan cuma punya 2 nilai valid (Kamar::STATUS_KETERSEDIAAN):
+        // 'Aktif' / 'Tidak Aktif' - sama seperti pola Mess/Bungalow, diisi manual
+        // oleh Admin lewat form Kamar. SEBELUMNYA di sini filternya 'Tersedia'
+        // (nilai yang gak pernah ada di enum aslinya, cuma sisa default kolom di
+        // migration), jadi kamar apa pun gak akan pernah kena filter ini - semua
+        // kamar selalu keliatan "gak tersedia" walau statusnya Aktif. Ketersediaan
+        // per-JADWAL (bukan status manual ini) sudah ditangani terpisah lewat
+        // deteksi bentrok (MessBorrowing::bentrok()), bukan lewat kolom ini.
+        $kamarsByMess = Kamar::where('status_ketersediaan', 'Aktif')
             ->whereIn('minimum_jabatan', $eligibleJabatan)
             ->get()
             ->groupBy('mess_id');
 
         $messById = Mess::where('status', 'Aktif')->pluck('nama', 'id');
 
+        // Bungalow pakai konvensi status huruf kecil ('aktif'/'nonaktif'), beda
+        // dari Mess yang 'Aktif'/'Nonaktif' - sebelumnya di-query 'Aktif' (besar)
+        // di sini, jadi bungalow gak akan pernah kena filter ini.
         $bungalows = Bungalow::where('status', 'aktif')
             ->whereIn('minimum_jabatan', $eligibleJabatan)
             ->get();
@@ -116,25 +128,8 @@ class PeminjamanMessController extends Controller
         $bookableClass = self::BOOKABLE_MAP[$validated['unit_type']];
         $unit = $bookableClass::findOrFail($validated['unit_id']);
 
-        // 1. Validasi status ketersediaan unit di Master Data
         $this->assertUnitAvailable($unit);
-
-        // 2. Validasi kelayakan jabatan
         $this->assertJabatanEligible($unit, $user->role);
-
-        // 3. Validasi pencegahan double booking pada tanggal/jam yang sama
-        $isOverlapping = MessBorrowing::bentrok(
-            $bookableClass,
-            $unit->id,
-            $validated['waktu_mulai'],
-            $validated['waktu_selesai']
-        )->exists();
-
-        if ($isOverlapping) {
-            throw ValidationException::withMessages([
-                'waktu_mulai' => 'Mohon maaf, unit ini sudah dipesan pada jadwal tersebut. Silakan pilih waktu lain atau unit yang berbeda.',
-            ]);
-        }
 
         $peminjaman = DB::transaction(function () use ($validated, $bookableClass, $unit, $user) {
             return MessBorrowing::create([
@@ -143,8 +138,8 @@ class PeminjamanMessController extends Controller
                 'bookable_id' => $unit->id,
                 'waktu_mulai' => $validated['waktu_mulai'],
                 'waktu_selesai' => $validated['waktu_selesai'],
-                'peminjam_department' => $user->department ?? '-',
-                'peminjam_sub_department' => $user->sub_department ?? '-',
+                'peminjam_department' => $user->department,
+                'peminjam_sub_department' => $user->sub_department,
                 'peminjam_role' => $user->role,
                 'peminjam_name' => $user->name,
                 'peminjam_username' => $user->username,
@@ -454,7 +449,7 @@ class PeminjamanMessController extends Controller
 
     private function assertUnitAvailable(Kamar|Bungalow $unit): void
     {
-        if ($unit instanceof Kamar && $unit->status_ketersediaan !== 'Tersedia') {
+        if ($unit instanceof Kamar && $unit->status_ketersediaan !== 'Aktif') {
             throw ValidationException::withMessages(['unit_id' => 'Kamar sedang tidak tersedia.']);
         }
 
@@ -465,8 +460,8 @@ class PeminjamanMessController extends Controller
 
     private function assertJabatanEligible(Kamar|Bungalow $unit, string $peminjamRole): void
     {
-        $minLevel = MessBorrowing::RANK_ORDER[$unit->minimum_jabatan] ?? MessBorrowing::RANK_ORDER['User'];
-        $userLevel = MessBorrowing::RANK_ORDER[$peminjamRole] ?? MessBorrowing::RANK_ORDER['User'];
+        $minLevel = MessBorrowing::JABATAN_TIER[$unit->minimum_jabatan] ?? MessBorrowing::JABATAN_TIER['Staff'];
+        $userLevel = MessBorrowing::eligibleJabatanTier($peminjamRole);
 
         if ($userLevel < $minLevel) {
             throw ValidationException::withMessages([
@@ -476,14 +471,15 @@ class PeminjamanMessController extends Controller
     }
 
     /**
-     * Daftar minimum_jabatan yang boleh dilihat/dipesan oleh $role tertentu
-     * (jabatan role itu sendiri + semua yang levelnya di bawahnya).
+     * Daftar minimum_jabatan (Staff/Kasubag/Kabag) yang boleh dilihat/
+     * dipesan oleh $role tertentu (jabatan efektifnya sendiri + semua yang
+     * levelnya di bawah).
      */
     private function eligibleJabatan(string $role): array
     {
-        $userLevel = MessBorrowing::RANK_ORDER[$role] ?? MessBorrowing::RANK_ORDER['User'];
+        $userLevel = MessBorrowing::eligibleJabatanTier($role);
 
-        return collect(MessBorrowing::RANK_ORDER)
+        return collect(MessBorrowing::JABATAN_TIER)
             ->filter(fn ($level) => $level <= $userLevel)
             ->keys()
             ->all();

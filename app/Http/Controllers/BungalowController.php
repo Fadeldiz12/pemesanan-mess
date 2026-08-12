@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Bungalow;
+use App\Models\MessBorrowing;
 use App\Support\AccessMatrix;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -28,7 +29,7 @@ class BungalowController extends Controller
     {
         $this->authorizeAction($request, 'create');
 
-        return view('bungalows.create', ['jabatanLevels' => AccessMatrix::roles()]);
+        return view('bungalows.create', ['jabatanLevels' => array_keys(MessBorrowing::JABATAN_TIER)]);
     }
 
     public function store(Request $request)
@@ -59,7 +60,7 @@ class BungalowController extends Controller
     {
         $this->authorizeAction($request, 'update');
 
-        return view('bungalows.edit', ['bungalow' => $bungalow, 'jabatanLevels' => AccessMatrix::roles()]);
+        return view('bungalows.edit', ['bungalow' => $bungalow, 'jabatanLevels' => array_keys(MessBorrowing::JABATAN_TIER)]);
     }
 
     public function update(Request $request, Bungalow $bungalow)
@@ -105,7 +106,7 @@ class BungalowController extends Controller
             'deskripsi' => ['nullable', 'string'],
             'foto' => ['nullable', 'image', 'max:2048'],
             'kapasitas' => ['required', 'integer', 'min:1'],
-            'minimum_jabatan' => ['required', Rule::in(AccessMatrix::roles())],
+            'minimum_jabatan' => ['required', Rule::in(array_keys(MessBorrowing::JABATAN_TIER))],
             'status' => ['required', 'in:aktif,nonaktif'],
         ]);
     }
