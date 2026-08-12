@@ -111,7 +111,6 @@ class PeminjamanMessController extends Controller
 
         $user = $request->user();
 
-        // Normalisasi tipe unit ke huruf kecil
         if ($request->has('unit_type')) {
             $request->merge(['unit_type' => Str::lower($request->input('unit_type'))]);
         }
@@ -147,6 +146,14 @@ class PeminjamanMessController extends Controller
                 'keperluan' => $validated['keperluan'],
                 'note' => $validated['note'] ?? null,
                 'created_by' => $user->id,
+                
+                // KUNCI PERBAIKAN: Suntikkan nilai default agar logika 'Lompat Jabatan' bisa berfungsi
+                'staff_approval_status' => 'Menunggu',
+                'kasubbag_approval_status' => 'Menunggu',
+                'kabag_approval_status' => 'Menunggu',
+                'admin_approval_status' => 'Menunggu',
+                'approval_status' => 'Menunggu',
+                'peminjaman_status' => 'Diajukan',
             ]);
         });
 
@@ -516,17 +523,15 @@ class PeminjamanMessController extends Controller
 
     private function authorizeView($user, MessBorrowing $peminjaman): void
     {
-        if ($peminjaman->created_by === $user->id || $user->role === 'Admin') {
+        // 1. Pembuat pengajuan, Admin, dan Super Admin bebas melihat detail
+        if ($peminjaman->created_by === $user->id || in_array($user->role, ['Admin', 'Super Admin'])) {
             return;
         }
 
-        $stage = $this->currentStage($peminjaman);
-        if ($stage) {
-            try {
-                $this->assertIsApproverForStage($user, $peminjaman, $stage);
+        // 2. Approver (Staff/Kasubbag/Kabag) berhak melihat detail semua pengajuan dari departemennya
+        if (in_array($user->role, ['Staff Approval', 'Kasubbag Approval', 'Kabag Approval'])) {
+            if ($user->department === $peminjaman->peminjam_department) {
                 return;
-            } catch (\Throwable) {
-                // Ignore and fallthrough to abort
             }
         }
 
