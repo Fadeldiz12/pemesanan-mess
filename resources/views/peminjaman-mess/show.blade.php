@@ -17,8 +17,13 @@
     $currentStageIndex = $statusToStage[$peminjaman->approval_status] ?? 0;
 
     $roleSaya = auth()->user()->role ?? null;
-    $isAdmin = in_array($roleSaya, ['Admin', 'Super Admin', 'Administrator']);
-    
+    $isAdmin = in_array($roleSaya, ['Admin', 'Super Admin']);
+
+    // Panel Admin (bentrok, reschedule, ubah waktu) gak relevan lagi begitu
+    // peminjaman final ditolak/selesai - gak ada lagi yang bisa dibentrokkan
+    // atau dijadwal ulang.
+    $adminPanelRelevant = !in_array($peminjaman->peminjaman_status, ['Ditolak', 'Selesai'], true);
+
     // Validasi hak akses aksi approval
     $canAct = false;
     if ($peminjaman->approval_status === 'Menunggu Staff' && $roleSaya === 'Staff Approval') $canAct = true;
@@ -29,7 +34,7 @@
 
 @section('content')
 <div class="row g-4">
-    <!-- KOLOM UTAMA: DETAIL DATA, PENGEMBALIAN & RATING -->
+    <!-- KOLOM UTAMA: DETAIL DATA, BENTROK, PENGEMBALIAN & RATING -->
     <div class="col-12 col-xl-8">
         
         <!-- 1. KARTU DETAIL PEMINJAMAN -->
@@ -112,7 +117,39 @@
             </div>
         </div>
 
-        <!-- 2. FORM PENGEMBALIAN (Muncul saat status 'Disetujui' / Sedang Berjalan) -->
+        <!-- 2. PANEL BENTROK JADWAL (Admin, cuma muncul kalau memang ada bentrok) -->
+        @if($isAdmin && $conflicts->isNotEmpty())
+        <div class="card border-0 shadow-sm mb-4 border-top border-4 border-warning">
+            <div class="card-header bg-white py-3 border-bottom">
+                <h5 class="fs-5 mb-0 fw-bold text-warning"><i class="ti ti-alert-triangle me-2"></i>Bentrok Jadwal Terdeteksi</h5>
+            </div>
+            <div class="card-body p-4">
+                <p class="text-secondary small mb-3">Unit dan rentang waktu yang sama diajukan juga oleh {{ $conflicts->count() }} peminjaman lain. Prioritas ditentukan berdasarkan jabatan (Kabag &gt; Kasubag &gt; Staff).</p>
+                @foreach($conflicts as $c)
+                    <div class="d-flex justify-content-between align-items-center border rounded p-3 mb-2 {{ $c['diprioritaskan'] ? 'bg-white' : 'bg-light' }}">
+                        <div>
+                            <div class="fw-semibold text-dark">{{ $c['peminjaman']->peminjaman_code }} &middot; {{ $c['peminjaman']->peminjam_name }}</div>
+                            <div class="small text-muted">
+                                <i class="ti ti-briefcase me-1"></i>{{ $c['peminjaman']->peminjam_role }}
+                                <span class="mx-1">&middot;</span>
+                                {{ \Carbon\Carbon::parse($c['peminjaman']->waktu_mulai)->format('d M Y, H:i') }} - {{ \Carbon\Carbon::parse($c['peminjaman']->waktu_selesai)->format('d M Y, H:i') }}
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            @if($c['diprioritaskan'])
+                                <span class="badge bg-secondary-subtle text-secondary d-block mb-1">Prioritas lebih rendah</span>
+                            @else
+                                <span class="badge bg-success-subtle text-success d-block mb-1">Diprioritaskan</span>
+                            @endif
+                            <a href="{{ route('peminjaman.show', $c['peminjaman']) }}" class="btn btn-light btn-sm border">Lihat Detail</a>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
+        <!-- 3. FORM PENGEMBALIAN (Muncul saat status 'Disetujui' / Sedang Berjalan) -->
         @if($peminjaman->peminjaman_status === 'Disetujui')
         <div class="card border-0 shadow-sm mb-4 border-top border-4 border-success">
             <div class="card-header bg-white py-3 border-bottom">
@@ -141,7 +178,7 @@
         </div>
         @endif
 
-        <!-- 3. FORM RATING (Muncul saat status 'Selesai') -->
+        <!-- 4. FORM RATING (Muncul saat status 'Selesai') -->
         @if($peminjaman->peminjaman_status === 'Selesai')
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white py-3 border-bottom">
@@ -178,7 +215,10 @@
         <div class="card border-0 shadow-sm mb-4 border-top border-4 border-primary">
             <div class="card-header bg-white py-3"><h5 class="fs-6 mb-0 fw-bold text-primary">Tindakan Anda</h5></div>
             <div class="card-body d-grid gap-3">
-                <form class="ajax-form" action="{{ route('peminjaman.approve', $peminjaman->id) }}" method="POST">
+                {{-- data-confirm-conflict: kalau ada bentrok yang belum diberesin, JS bakal
+                     nanya konfirmasi dulu sebelum submit - bukan diblokir hard, keputusan
+                     akhir tetap di tangan Admin (README: Admin yang berwenang approve). --}}
+                <form class="ajax-form" action="{{ route('peminjaman.approve', $peminjaman->id) }}" method="POST" @if($conflicts->isNotEmpty()) data-confirm-conflict="1" @endif>
                     @csrf
                     <button type="submit" class="btn btn-success w-100 py-2 shadow-sm fw-semibold btn-save"><i class="ti ti-thumb-up me-2"></i>Setujui Pengajuan</button>
                 </form>
@@ -201,15 +241,28 @@
         </div>
         @endif
 
-        {{-- Panel Admin (Cek Bentrok & Reschedule) --}}
-        @if($isAdmin && $peminjaman->peminjaman_status !== 'Selesai')
+        {{-- Panel Admin (Bentrok, Reschedule, Ubah Waktu) --}}
+        @if($isAdmin && $adminPanelRelevant)
         <div class="card border-0 shadow-sm mb-4 border-top border-4 border-dark">
             <div class="card-header bg-white py-3"><h5 class="fs-6 mb-0 fw-bold"><i class="ti ti-settings me-2"></i>Kontrol Administrator</h5></div>
             <div class="card-body d-grid gap-2">
-                <a href="{{ route('peminjaman.conflicts', $peminjaman->id) }}" class="btn btn-light border text-dark w-100 py-2 text-start">
-                    <i class="ti ti-alert-circle me-2 text-warning"></i>Cek Bentrok Jadwal
-                </a>
-                
+                @if($conflicts->isNotEmpty())
+                    <button type="button" class="btn btn-outline-warning w-100 py-2 text-start" data-bs-toggle="collapse" data-bs-target="#formReschedule">
+                        <i class="ti ti-calendar-x me-2"></i>Tandai Perlu Reschedule
+                    </button>
+                    <div class="collapse" id="formReschedule">
+                        <form class="ajax-form mt-2" action="{{ route('peminjaman.conflict-reject', $peminjaman->id) }}" method="POST">
+                            @csrf
+                            <div class="bg-light p-3 rounded border border-warning">
+                                <label class="form-label small fw-semibold">Alasan (opsional)</label>
+                                <textarea name="alasan" class="form-control form-control-sm mb-3" rows="2" placeholder="Contoh: kalah prioritas dari Kabag..."></textarea>
+                                <div class="form-text small mb-2">Peminjaman ini akan diminta mengajukan ulang di waktu lain. Pemohon tetap bisa reschedule sendiri lewat halaman ini setelahnya.</div>
+                                <button type="submit" class="btn btn-warning btn-sm w-100 btn-save">Tandai Perlu Reschedule</button>
+                            </div>
+                        </form>
+                    </div>
+                @endif
+
                 <button type="button" class="btn btn-light border text-dark w-100 py-2 text-start" data-bs-toggle="collapse" data-bs-target="#formWaktu">
                     <i class="ti ti-clock-edit me-2 text-primary"></i>Ubah Waktu Pelaksanaan
                 </button>
@@ -275,12 +328,22 @@
             });
         });
 
-        // 2. Global AJAX Form Handler (Digunakan untuk Edit Waktu, Setuju, Tolak, Kembalikan, Rating)
+        // 2. Global AJAX Form Handler (Digunakan untuk Edit Waktu, Setuju, Tolak, Kembalikan, Rating, Reschedule)
         document.body.addEventListener('submit', function (event) {
             if (event.target && event.target.classList.contains('ajax-form')) {
                 event.preventDefault();
 
                 const form = event.target;
+
+                // Warning, bukan hard-block: kalau form approve ini punya bentrok yang
+                // belum diberesin, tanya dulu - Admin tetap boleh lanjut kalau yakin.
+                if (form.dataset.confirmConflict === '1') {
+                    const lanjut = confirm('Peminjaman ini masih bentrok jadwal dengan peminjaman lain yang belum diselesaikan. Tetap setujui?');
+                    if (!lanjut) {
+                        return;
+                    }
+                }
+
                 const url = form.getAttribute('action');
                 const btn = form.querySelector('.btn-save');
                 const originalText = btn.innerHTML;

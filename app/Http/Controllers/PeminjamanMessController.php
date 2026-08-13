@@ -98,7 +98,32 @@ class PeminjamanMessController extends Controller
     {
         $this->authorizeView($request->user(), $peminjaman);
 
-        return view('peminjaman-mess.show', compact('peminjaman'));
+        $conflicts = collect();
+        $user = $request->user();
+        $isAdmin = in_array($user->role, ['Admin', 'Super Admin'], true);
+        $isFinal = in_array($peminjaman->peminjaman_status, ['Ditolak', 'Selesai'], true);
+
+        // Dulu "Cek Bentrok Jadwal" cuma link ke endpoint JSON terpisah (JSON
+        // mentah ditampilkan browser, gak layak dilihat Admin). Sekarang
+        // dihitung langsung di sini biar tampil sebagai panel di halaman yang
+        // sama - dan Admin gak perlu klik apa pun buat tahu ada bentrok atau
+        // nggak. Hanya dihitung buat Admin & selama peminjaman belum final,
+        // karena cuma Admin yang punya aksi terkait bentrok (README: "Admin
+        // memantau seluruh jadwal aktif").
+        if ($isAdmin && !$isFinal) {
+            $conflicts = MessBorrowing::bentrok(
+                $peminjaman->bookable_type,
+                $peminjaman->bookable_id,
+                $peminjaman->waktu_mulai,
+                $peminjaman->waktu_selesai,
+                $peminjaman->id
+            )->get()->map(fn (MessBorrowing $other) => [
+                'peminjaman' => $other,
+                'diprioritaskan' => $peminjaman->outranks($other),
+            ]);
+        }
+
+        return view('peminjaman-mess.show', compact('peminjaman', 'conflicts'));
     }
 
     /**
@@ -111,6 +136,7 @@ class PeminjamanMessController extends Controller
 
         $user = $request->user();
 
+        // Normalisasi tipe unit ke huruf kecil
         if ($request->has('unit_type')) {
             $request->merge(['unit_type' => Str::lower($request->input('unit_type'))]);
         }
@@ -146,14 +172,6 @@ class PeminjamanMessController extends Controller
                 'keperluan' => $validated['keperluan'],
                 'note' => $validated['note'] ?? null,
                 'created_by' => $user->id,
-                
-                // KUNCI PERBAIKAN: Suntikkan nilai default agar logika 'Lompat Jabatan' bisa berfungsi
-                'staff_approval_status' => 'Menunggu',
-                'kasubbag_approval_status' => 'Menunggu',
-                'kabag_approval_status' => 'Menunggu',
-                'admin_approval_status' => 'Menunggu',
-                'approval_status' => 'Menunggu',
-                'peminjaman_status' => 'Diajukan',
             ]);
         });
 
@@ -523,15 +541,17 @@ class PeminjamanMessController extends Controller
 
     private function authorizeView($user, MessBorrowing $peminjaman): void
     {
-        // 1. Pembuat pengajuan, Admin, dan Super Admin bebas melihat detail
-        if ($peminjaman->created_by === $user->id || in_array($user->role, ['Admin', 'Super Admin'])) {
+        if ($peminjaman->created_by === $user->id || $user->role === 'Admin') {
             return;
         }
 
-        // 2. Approver (Staff/Kasubbag/Kabag) berhak melihat detail semua pengajuan dari departemennya
-        if (in_array($user->role, ['Staff Approval', 'Kasubbag Approval', 'Kabag Approval'])) {
-            if ($user->department === $peminjaman->peminjam_department) {
+        $stage = $this->currentStage($peminjaman);
+        if ($stage) {
+            try {
+                $this->assertIsApproverForStage($user, $peminjaman, $stage);
                 return;
+            } catch (\Throwable) {
+                // Ignore and fallthrough to abort
             }
         }
 
