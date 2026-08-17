@@ -147,9 +147,17 @@ class MessBorrowing extends Model
         return self::JABATAN_TIER[$jabatan] ?? self::JABATAN_TIER['Staff'];
     }
 
+    /**
+     * Prioritas saat bentrok jadwal (README bagian 2 langkah 4) - pakai
+     * JABATAN_TIER (Staff/Kasubag/Kabag), BUKAN rankLevel()/RANK_ORDER.
+     * RANK_ORDER itu soal urutan approval (6 level, granular per role
+     * approval), sedangkan prioritas bentrok itu soal jabatan asli pemohon
+     * (cuma 3 tingkat) - dua konsep beda yang sebelumnya kepakai keliru
+     * di sini (pakai RANK_ORDER).
+     */
     public function outranks(self $other): bool
     {
-        return $this->rankLevel() > $other->rankLevel();
+        return self::eligibleJabatanTier($this->peminjam_role) > self::eligibleJabatanTier($other->peminjam_role);
     }
 
     public function candidateApprovers(string $stage): Collection
@@ -182,10 +190,18 @@ class MessBorrowing extends Model
         return $this->morphTo();
     }
 
+    /**
+     * hasOne() nebak foreign key dari nama CLASS pemanggil (MessBorrowing ->
+     * mess_borrowing_id), bukan dari nama tabelnya ('peminjaman'). Kolom
+     * asli di tabel ratings tetap 'peminjaman_id' (sisa dari sebelum model
+     * ini di-rename dari Peminjaman -> MessBorrowing), jadi FK-nya wajib
+     * dieksplisitkan di sini - beda dari Rating::peminjaman() (arah
+     * sebaliknya) yang kebetulan gak kena masalah ini karena belongsTo()
+     * nebak FK dari nama METHOD ('peminjaman'), bukan dari nama class.
+     */
     public function rating(): HasOne
     {
-        // 👇 PERBAIKAN DI SINI: Menambahkan foreign_key 'peminjaman_id' dan local_key 'id' secara eksplisit 👇
-        return $this->hasOne(Rating::class, 'peminjaman_id', 'id');
+        return $this->hasOne(Rating::class, 'peminjaman_id');
     }
 
     public function pemohon(): BelongsTo
