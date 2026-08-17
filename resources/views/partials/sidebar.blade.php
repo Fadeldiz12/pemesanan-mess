@@ -24,8 +24,8 @@
         ['type' => 'link', 'label' => 'Approval', 'icon' => 'ti ti-checkup-list', 'route' => 'approval.index', 'can' => 'approval'],
 
         ['type' => 'group', 'label' => 'Laporan', 'icon' => 'ti ti-file-spreadsheet', 'key' => 'laporan', 'children' => [
-            ['label' => 'Export Excel', 'route' => 'peminjaman.export-excel', 'can' => 'reports', 'action' => 'export'],
-            ['label' => 'Export PDF', 'route' => 'peminjaman.export-pdf', 'can' => 'reports', 'action' => 'export'],
+            ['label' => 'Laporan Peminjaman', 'route' => 'mess-reports.index', 'can' => 'reports'],
+            ['label' => 'Log Aktivitas', 'route' => 'logs.index', 'can' => 'logs'],
         ]],
 
         ['type' => 'group', 'label' => 'Administrasi', 'icon' => 'ti ti-shield-lock', 'key' => 'administrasi', 'children' => [

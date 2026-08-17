@@ -12,8 +12,9 @@ use App\Http\Controllers\PeminjamanMessController;
 use App\Http\Controllers\RoleAccessController;
 use App\Http\Controllers\SubDepartmentController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\MessReportController;
+use App\Http\Controllers\ActivityLogController;
 use Illuminate\Support\Facades\Route;
-
 
 // Redirect halaman utama ke daftar peminjaman mess
 Route::redirect('/', '/peminjaman-mess');
@@ -32,16 +33,7 @@ Route::get('/dashboard', function () {
     return view('dashboard.index');
 })->name('dashboard');
 
-
 Route::middleware(['auth'])->group(function () {
-
-    Route::get('/messes', function () {
-        return view('messes.index');
-    })->name('messes.index');
-    
-    Route::get('/messes/create', function () {
-        return view('messes.create');
-    })->name('messes.create');
 
     // Katalog & Halaman Pemesanan Utama
     Route::get('/peminjaman-mess', [PeminjamanMessController::class, 'index'])->name('peminjaman-mess.index');
@@ -91,9 +83,13 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/role-access/roles', [RoleAccessController::class, 'storeRole'])->name('role-access.roles.store');
     Route::delete('/role-access/roles/{role}', [RoleAccessController::class, 'destroyRole'])->name('role-access.roles.destroy');
 
-    // Export Data (Excel / PDF)
-    Route::get('/peminjaman-mess-export/excel', [PeminjamanMessController::class, 'exportExcel'])->name('peminjaman.export-excel');
-    Route::get('/peminjaman-mess-export/pdf', [PeminjamanMessController::class, 'exportPdf'])->name('peminjaman.export-pdf');
+    // Laporan & Export Data (Excel / PDF)
+    Route::get('/mess-reports', [MessReportController::class, 'index'])->name('mess-reports.index');
+    Route::get('/peminjaman-mess-export/excel', [PeminjamanMessController::class, 'exportExcel'])->name('peminjaman.exportExcel');
+    Route::get('/peminjaman-mess-export/pdf', [PeminjamanMessController::class, 'exportPdf'])->name('peminjaman.exportPdf');
+
+    // Log Aktivitas
+    Route::get('/logs', [ActivityLogController::class, 'index'])->name('logs.index');
 
     // Rating & Ulasan
     Route::post('/peminjaman-mess/{peminjaman}/rating', [RatingMessController::class, 'store'])->name('rating.store');

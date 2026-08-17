@@ -8,7 +8,7 @@
         <div class="card-body p-4 p-md-5">
             <div class="text-center mb-4">
                 <img src="{{ asset('inapp/assets/images/logo-ptpn1.png') }}" alt="Logo" style="height: 56px; width: auto; object-fit: contain;" class="mb-3">
-                <h1 class="fs-4 fw-bold mb-1">Masuk ke aplikasi</h1>
+                <h1 class="fs-4 mb-1">Masuk ke aplikasi</h1>
                 <p class="text-secondary small mb-0">Aplikasi Peminjaman Mess &amp; Bungalow</p>
             </div>
 
