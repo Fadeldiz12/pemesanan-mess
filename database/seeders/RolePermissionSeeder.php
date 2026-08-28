@@ -66,6 +66,7 @@ class RolePermissionSeeder extends Seeder
                 'peminjaman-mess' => ['read', 'create', 'approve', 'update', 'export'],
                 'users' => ['read', 'create', 'update', 'delete'],
                 'role-access' => ['read', 'update'],
+                'jabatan' => ['read', 'create', 'update', 'delete'],
             ],
         ];
 

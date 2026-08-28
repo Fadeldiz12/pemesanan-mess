@@ -5,11 +5,17 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Bungalow;
-use App\Models\MessBorrowing;
+use App\Models\Jabatan;
+use App\Models\UnitPrice;
 use App\Support\AccessMatrix;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 
+/**
+ * minimum_jabatan sekarang sumbernya tabel jabatans (dinamis, dikelola
+ * lewat Manajemen Jabatan) - lihat catatan yang sama di KamarController.
+ */
 class BungalowController extends Controller
 {
     public function index(Request $request)
@@ -29,7 +35,13 @@ class BungalowController extends Controller
     {
         $this->authorizeAction($request, 'create');
 
-        return view('bungalows.create', ['jabatanLevels' => array_keys(MessBorrowing::JABATAN_TIER)]);
+        $jabatans = $this->jabatansForPricing(null);
+
+        return view('bungalows.create', [
+            'jabatanLevels' => $jabatans->pluck('nama'),
+            'jabatansForPricing' => $jabatans,
+            'existingPrices' => [],
+        ]);
     }
 
     public function store(Request $request)
@@ -37,12 +49,15 @@ class BungalowController extends Controller
         $this->authorizeAction($request, 'create');
 
         $data = $this->validated($request);
+        $harga = $data['harga'] ?? [];
+        unset($data['harga']);
 
         if ($request->hasFile('foto')) {
             $data['foto'] = $request->file('foto')->store('bungalows', 'public');
         }
 
         $bungalow = Bungalow::create($data);
+        $this->savePrices($bungalow, $harga);
 
         ActivityLog::record($request->user(), 'create', 'bungalow', (string) $bungalow->id, "Menambahkan Bungalow: {$bungalow->nama}");
 
@@ -60,7 +75,15 @@ class BungalowController extends Controller
     {
         $this->authorizeAction($request, 'update');
 
-        return view('bungalows.edit', ['bungalow' => $bungalow, 'jabatanLevels' => array_keys(MessBorrowing::JABATAN_TIER)]);
+        $bungalow->load('prices');
+        $jabatans = $this->jabatansForPricing($bungalow->minimum_jabatan);
+
+        return view('bungalows.edit', [
+            'bungalow' => $bungalow,
+            'jabatanLevels' => $this->jabatansForPricing(null)->pluck('nama'),
+            'jabatansForPricing' => $jabatans,
+            'existingPrices' => $bungalow->prices->pluck('harga', 'jabatan_id'),
+        ]);
     }
 
     public function update(Request $request, Bungalow $bungalow)
@@ -68,12 +91,15 @@ class BungalowController extends Controller
         $this->authorizeAction($request, 'update');
 
         $data = $this->validated($request);
+        $harga = $data['harga'] ?? [];
+        unset($data['harga']);
 
         if ($request->hasFile('foto')) {
             $data['foto'] = $request->file('foto')->store('bungalows', 'public');
         }
 
         $bungalow->update($data);
+        $this->savePrices($bungalow, $harga);
 
         ActivityLog::record($request->user(), 'update', 'bungalow', (string) $bungalow->id, "Memperbarui Bungalow: {$bungalow->nama}");
 
@@ -106,9 +132,42 @@ class BungalowController extends Controller
             'deskripsi' => ['nullable', 'string'],
             'foto' => ['nullable', 'image', 'max:2048'],
             'kapasitas' => ['required', 'integer', 'min:1'],
-            'minimum_jabatan' => ['required', Rule::in(array_keys(MessBorrowing::JABATAN_TIER))],
+            'minimum_jabatan' => ['required', Rule::exists('jabatans', 'nama')->where('status', 'Aktif')],
             'status' => ['required', 'in:aktif,nonaktif'],
+            'harga' => ['nullable', 'array'],
+            'harga.*' => ['nullable', 'integer', 'min:0'],
         ]);
+    }
+
+    /**
+     * Sama seperti KamarController::jabatansForPricing() - jabatan aktif
+     * yang levelnya >= level minimum_jabatan unit ini (kalau ada).
+     */
+    private function jabatansForPricing(?string $minimumJabatanNama): Collection
+    {
+        $all = Jabatan::where('status', 'Aktif')->orderByDesc('level')->orderBy('nama')->get();
+
+        if (!$minimumJabatanNama) {
+            return $all;
+        }
+
+        $minLevel = $all->firstWhere('nama', $minimumJabatanNama)?->level;
+
+        return $minLevel === null ? $all : $all->filter(fn ($j) => $j->level >= $minLevel)->values();
+    }
+
+    private function savePrices(Bungalow $bungalow, array $harga): void
+    {
+        foreach ($harga as $jabatanId => $nilai) {
+            if ($nilai === null || $nilai === '') {
+                continue;
+            }
+
+            UnitPrice::updateOrCreate(
+                ['bookable_type' => Bungalow::class, 'bookable_id' => $bungalow->id, 'jabatan_id' => (int) $jabatanId],
+                ['harga' => (int) $nilai]
+            );
+        }
     }
 
     /**

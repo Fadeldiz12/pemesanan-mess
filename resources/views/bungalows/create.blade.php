@@ -57,6 +57,8 @@
                     </div>
                 </div>
 
+                @include('partials.unit-price-matrix')
+
                 <div class="mb-3">
                     <label for="foto" class="form-label">Foto <span class="text-secondary fw-normal">(opsional)</span></label>
                     <input type="file" id="foto" name="foto" class="form-control" accept="image/*">

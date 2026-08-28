@@ -37,6 +37,8 @@
             <div class="form-text">Jabatan minimum yang boleh mengajukan peminjaman kamar ini.</div>
         </div>
 
+        @include('partials.unit-price-matrix')
+
         <div class="mb-3">
             <label for="deskripsi" class="form-label">Deskripsi</label>
             <textarea name="deskripsi" id="deskripsi" class="form-control" rows="3">{{ old('deskripsi') }}</textarea>

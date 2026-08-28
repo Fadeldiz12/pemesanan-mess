@@ -40,6 +40,7 @@ class AccessMatrix
             'dashboard' => ['label' => 'Dashboard', 'group' => 'Operasional', 'actions' => ['read']],
             'departments' => ['label' => 'Bagian', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
             'sub-departments' => ['label' => 'Subbagian', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
+            'jabatan' => ['label' => 'Jabatan', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
             // ⬇️ Modul Mess/Bungalow (dipakai MessController, KamarController,
             // BungalowController, PeminjamanMessController - lihat menu_key di
             // masing-masing authorizeAction()). Sebelumnya TIDAK ADA di sini,
@@ -72,6 +73,7 @@ class AccessMatrix
                 'dashboard' => ['read'],
                 'departments' => ['read', 'create', 'update', 'delete'],
                 'sub-departments' => ['read', 'create', 'update', 'delete'],
+                'jabatan' => ['read', 'create', 'update', 'delete'],
                 'mess' => ['read', 'create', 'update', 'delete'],
                 'bungalow' => ['read', 'create', 'update', 'delete'],
                 'peminjaman-mess' => ['read', 'create', 'approve', 'update', 'export'],

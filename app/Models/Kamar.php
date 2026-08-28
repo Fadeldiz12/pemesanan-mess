@@ -19,9 +19,10 @@ class Kamar extends Model
      * Staff, Kasubbag, Kabag, Admin, Super Admin) - dihapus karena dua
      * masalah: (1) nama-namanya gak match role asli di sistem ini ('Staff'
      * vs yang sebenarnya 'Staff Approval', dst - MessBorrowing::RANK_ORDER
-     * gak akan pernah cocok), dan (2) daftar role sekarang dikelola dinamis
-     * lewat halaman Manajemen Akses (tabel roles), bukan hardcode di model.
-     * Pakai App\Support\AccessMatrix::roles() di controller sebagai gantinya.
+     * gak akan pernah cocok), dan (2) daftar jabatan sekarang dikelola
+     * dinamis lewat halaman Manajemen Jabatan (tabel jabatans), bukan
+     * hardcode di sini maupun di AccessMatrix::roles() (yang isinya role
+     * sistem, konsep beda dari jabatan).
      */
     public const STATUS_KETERSEDIAAN = [
         'Aktif',
@@ -55,5 +56,15 @@ class Kamar extends Model
     public function ratings(): MorphMany
     {
         return $this->morphMany(Rating::class, 'bookable');
+    }
+
+    public function prices(): MorphMany
+    {
+        return $this->morphMany(UnitPrice::class, 'bookable');
+    }
+
+    public function priceFor(Jabatan $jabatan): int
+    {
+        return $this->prices->firstWhere('jabatan_id', $jabatan->id)?->harga ?? 0;
     }
 }

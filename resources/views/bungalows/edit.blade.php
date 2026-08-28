@@ -58,6 +58,8 @@
                     </div>
                 </div>
 
+                @include('partials.unit-price-matrix')
+
                 <div class="mb-3">
                     <label for="foto" class="form-label">Foto <span class="text-secondary fw-normal">(opsional, biarkan kosong jika tidak ingin mengganti)</span></label>
                     @if ($bungalow->foto)

@@ -11,6 +11,7 @@ use App\Http\Controllers\ReturnMessController;
 use App\Http\Controllers\PeminjamanMessController;
 use App\Http\Controllers\RoleAccessController;
 use App\Http\Controllers\SubDepartmentController;
+use App\Http\Controllers\JabatanController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\MessReportController;
 use App\Http\Controllers\ActivityLogController;
@@ -73,6 +74,9 @@ Route::middleware(['auth'])->group(function () {
     // Master Data Bagian & Subbagian
     Route::resource('departments', DepartmentController::class);
     Route::resource('sub-departments', SubDepartmentController::class);
+    Route::resource('jabatans', JabatanController::class)->except(['show']);
+    Route::post('/jabatans/{jabatan}/move-up', [JabatanController::class, 'moveUp'])->name('jabatans.move-up');
+    Route::post('/jabatans/{jabatan}/move-down', [JabatanController::class, 'moveDown'])->name('jabatans.move-down');
 
     // Manajemen User & Management Akses (Administrasi)
     Route::resource('users', UserController::class)->except(['show']);

@@ -4,13 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\Jabatan;
 use App\Models\Kamar;
 use App\Models\Mess;
-use App\Models\MessBorrowing;
+use App\Models\UnitPrice;
 use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -19,6 +21,12 @@ use Illuminate\View\View;
  * CRUD Kamar (sub-resource dari Mess).
  * Hanya Admin yang boleh create/update/delete. Semua jabatan boleh melihat
  * daftar Kamar (dipakai saat mengajukan peminjaman).
+ *
+ * minimum_jabatan sekarang sumbernya tabel jabatans (dinamis, dikelola
+ * lewat Manajemen Jabatan) - sebelumnya pakai MessBorrowing::JABATAN_TIER
+ * yang cuma 3 nilai hardcode (Staff/Kasubag/Kabag), jadi jabatan baru yang
+ * ditambah lewat Manajemen Jabatan gak akan pernah muncul di sini kalau
+ * gak diganti.
  */
 class KamarController extends Controller
 {
@@ -46,9 +54,16 @@ class KamarController extends Controller
     {
         $this->authorizeAction($request, 'create');
 
+        // Belum ada minimum_jabatan yang tersimpan (unit-nya baru), jadi
+        // semua jabatan aktif ditampilkan buat diisi harganya - baru
+        // dipersempit otomatis pas Edit, setelah minimum_jabatan-nya ada.
+        $jabatans = $this->jabatansForPricing(null);
+
         return view('kamars.create', [
             'mess' => $mess,
-            'jabatanLevels' => array_keys(MessBorrowing::JABATAN_TIER),
+            'jabatanLevels' => $jabatans->pluck('nama'),
+            'jabatansForPricing' => $jabatans,
+            'existingPrices' => [],
             'statusOptions' => Kamar::STATUS_KETERSEDIAAN,
         ]);
     }
@@ -64,16 +79,22 @@ class KamarController extends Controller
             ],
             'kapasitas' => ['required', 'integer', 'min:1'],
             'status_ketersediaan' => ['required', Rule::in(Kamar::STATUS_KETERSEDIAAN)],
-            'minimum_jabatan' => ['required', 'string', Rule::in(array_keys(MessBorrowing::JABATAN_TIER))],
+            'minimum_jabatan' => ['required', 'string', Rule::exists('jabatans', 'nama')->where('status', 'Aktif')],
             'deskripsi' => ['nullable', 'string'],
             'foto' => ['nullable', 'image', 'max:2048'],
+            'harga' => ['nullable', 'array'],
+            'harga.*' => ['nullable', 'integer', 'min:0'],
         ]);
+
+        $harga = $validated['harga'] ?? [];
+        unset($validated['harga']);
 
         if ($request->hasFile('foto')) {
             $validated['foto'] = $request->file('foto')->store('kamar', 'public');
         }
 
         $kamar = $mess->kamars()->create($validated);
+        $this->savePrices($kamar, $harga);
 
         ActivityLog::record($request->user(), 'create', 'kamar', (string) $kamar->id, "Menambahkan Kamar: {$kamar->nama_kamar} ({$mess->nama})");
 
@@ -99,11 +120,14 @@ class KamarController extends Controller
     {
         $this->authorizeAction($request, 'update');
 
-        $kamar->load('mess');
+        $kamar->load(['mess', 'prices']);
+        $jabatans = $this->jabatansForPricing($kamar->minimum_jabatan);
 
         return view('kamars.edit', [
             'kamar' => $kamar,
-            'jabatanLevels' => array_keys(MessBorrowing::JABATAN_TIER),
+            'jabatanLevels' => $this->jabatansForPricing(null)->pluck('nama'),
+            'jabatansForPricing' => $jabatans,
+            'existingPrices' => $kamar->prices->pluck('harga', 'jabatan_id'),
             'statusOptions' => Kamar::STATUS_KETERSEDIAAN,
         ]);
     }
@@ -119,10 +143,15 @@ class KamarController extends Controller
             ],
             'kapasitas' => ['sometimes', 'required', 'integer', 'min:1'],
             'status_ketersediaan' => ['sometimes', 'required', Rule::in(Kamar::STATUS_KETERSEDIAAN)],
-            'minimum_jabatan' => ['sometimes', 'required', 'string', Rule::in(array_keys(MessBorrowing::JABATAN_TIER))],
+            'minimum_jabatan' => ['sometimes', 'required', 'string', Rule::exists('jabatans', 'nama')->where('status', 'Aktif')],
             'deskripsi' => ['nullable', 'string'],
             'foto' => ['nullable', 'image', 'max:2048'],
+            'harga' => ['nullable', 'array'],
+            'harga.*' => ['nullable', 'integer', 'min:0'],
         ]);
+
+        $harga = $validated['harga'] ?? null;
+        unset($validated['harga']);
 
         if ($request->hasFile('foto')) {
             if ($kamar->foto) {
@@ -132,6 +161,10 @@ class KamarController extends Controller
         }
 
         $kamar->update($validated);
+
+        if ($harga !== null) {
+            $this->savePrices($kamar, $harga);
+        }
 
         ActivityLog::record($request->user(), 'update', 'kamar', (string) $kamar->id, "Memperbarui Kamar: {$kamar->nama_kamar}");
 
@@ -170,6 +203,39 @@ class KamarController extends Controller
         }
 
         return redirect()->route('messes.kamars.index', $messId)->with('success', 'Kamar berhasil dihapus.');
+    }
+
+    /**
+     * Jabatan aktif yang levelnya >= level minimum_jabatan unit ini (kalau
+     * ada) - jabatan di bawah minimum gak perlu diisi harganya karena
+     * emang gak bisa mesan unit ini. Kalau $minimumJabatanNama null (unit
+     * baru, belum ada minimum_jabatan tersimpan), tampilkan semua.
+     */
+    private function jabatansForPricing(?string $minimumJabatanNama): Collection
+    {
+        $all = Jabatan::where('status', 'Aktif')->orderByDesc('level')->orderBy('nama')->get();
+
+        if (!$minimumJabatanNama) {
+            return $all;
+        }
+
+        $minLevel = $all->firstWhere('nama', $minimumJabatanNama)?->level;
+
+        return $minLevel === null ? $all : $all->filter(fn ($j) => $j->level >= $minLevel)->values();
+    }
+
+    private function savePrices(Kamar $kamar, array $harga): void
+    {
+        foreach ($harga as $jabatanId => $nilai) {
+            if ($nilai === null || $nilai === '') {
+                continue;
+            }
+
+            UnitPrice::updateOrCreate(
+                ['bookable_type' => Kamar::class, 'bookable_id' => $kamar->id, 'jabatan_id' => (int) $jabatanId],
+                ['harga' => (int) $nilai]
+            );
+        }
     }
 
     private function authorizeAction(Request $request, string $action): void

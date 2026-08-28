@@ -81,14 +81,29 @@ class MessBorrowing extends Model
 
             $level = $peminjaman->rankLevel();
 
-            if ($level >= self::RANK_ORDER['Staff Approval']) {
-                $peminjaman->staff_approval_status = 'Disetujui';
-            }
-            if ($level >= self::RANK_ORDER['Kasubbag Approval']) {
-                $peminjaman->kasubbag_approval_status = 'Disetujui';
-            }
-            if ($level >= self::RANK_ORDER['Kabag Approval']) {
-                $peminjaman->kabag_approval_status = 'Disetujui';
+            // Cuma role yang MEMANG bagian dari tangga approval (Staff/
+            // Kasubbag/Kabag Approval) yang boleh skip tahap di bawah level
+            // mereka sendiri, buat menghindari self-approval (README poin
+            // 10.1: "pemohon Kasubag -> approval dimulai dari Kabag saja").
+            // Admin/Super Admin SENGAJA gak diikutkan di sini - meski
+            // RANK_ORDER mereka lebih tinggi, mereka bukan bagian dari
+            // tangga organisasi Staff->Kasubbag->Kabag (README bagian 1:
+            // Admin cuma "approver final, validasi jadwal"). Sebelumnya
+            // Admin/Super Admin ikut kena skip ini juga, jadi pengajuan
+            // yang dibuat oleh akun Admin langsung "Disetujui" semua tahap
+            // tanpa pernah lewat Staff/Kasubbag/Kabag sama sekali.
+            $isApprovalChainRole = in_array($peminjaman->peminjam_role, ['Staff Approval', 'Kasubbag Approval', 'Kabag Approval'], true);
+
+            if ($isApprovalChainRole) {
+                if ($level >= self::RANK_ORDER['Staff Approval']) {
+                    $peminjaman->staff_approval_status = 'Disetujui';
+                }
+                if ($level >= self::RANK_ORDER['Kasubbag Approval']) {
+                    $peminjaman->kasubbag_approval_status = 'Disetujui';
+                }
+                if ($level >= self::RANK_ORDER['Kabag Approval']) {
+                    $peminjaman->kabag_approval_status = 'Disetujui';
+                }
             }
 
             $peminjaman->settleApprovalStage();

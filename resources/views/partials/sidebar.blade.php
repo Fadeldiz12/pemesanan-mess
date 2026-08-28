@@ -14,6 +14,7 @@
             ['label' => 'Bungalow', 'route' => 'bungalows.index', 'can' => 'bungalow'],
             ['label' => 'Bagian', 'route' => 'departments.index', 'can' => 'departments'],
             ['label' => 'Subbagian', 'route' => 'sub-departments.index', 'can' => 'sub-departments'],
+            ['label' => 'Jabatan', 'route' => 'jabatans.index', 'can' => 'jabatan'],
         ]],
 
         ['type' => 'group', 'label' => 'Peminjaman Mess', 'icon' => 'ti ti-calendar-event', 'key' => 'peminjaman', 'children' => [
