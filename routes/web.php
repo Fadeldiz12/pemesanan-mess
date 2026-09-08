@@ -76,6 +76,10 @@ Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->gr
     // Generate Link Rating Sekali Pakai (Admin)
     Route::post('/peminjaman-mess/{peminjaman}/rating-link', [PeminjamanMessController::class, 'generateRatingLink'])->name('peminjaman.rating-link');
 
+    // Cetak Surat Otomatis (persetujuan & pembatalan)
+    Route::get('/peminjaman-mess/{peminjaman}/cetak-surat', [PeminjamanMessController::class, 'cetakSurat'])->name('peminjaman.cetak-surat');
+    Route::get('/peminjaman-mess/{peminjaman}/cetak-surat-pembatalan', [PeminjamanMessController::class, 'cetakSuratPembatalan'])->name('peminjaman.cetak-surat-pembatalan');
+
     // Approval Berjenjang (PeminjamanMessController)
     Route::post('/peminjaman-mess/{peminjaman}/approve', [PeminjamanMessController::class, 'approve'])->name('peminjaman.approve');
     Route::post('/peminjaman-mess/{peminjaman}/reject', [PeminjamanMessController::class, 'reject'])->name('peminjaman.reject');

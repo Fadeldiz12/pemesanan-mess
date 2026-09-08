@@ -23,6 +23,11 @@ class PeminjamanMessController extends Controller
         'bungalow' => Bungalow::class,
     ];
 
+    private const ROMAN_MONTHS = [
+        1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI',
+        7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
+    ];
+
     /**
      * Langkah 1 & 3: Katalog peminjaman Mess & Bungalow.
      */
@@ -529,6 +534,80 @@ class PeminjamanMessController extends Controller
         ActivityLog::record($request->user(), 'generate_rating_link', 'peminjaman_mess', (string) $peminjaman->id, "Membuat link rating untuk {$peminjaman->peminjaman_code}");
 
         return response()->json($peminjaman->fresh());
+    }
+
+    /**
+     * Cetak surat persetujuan otomatis (panduan pengembangan fitur poin
+     * 6) - muncul setelah SELURUH tahap approval lolos. Format surat
+     * generik dulu (belum ada format resmi baku yang disepakati) - lihat
+     * resources/views/surat/peminjaman.blade.php.
+     */
+    public function cetakSurat(Request $request, MessBorrowing $peminjaman)
+    {
+        $this->authorizeView($request->user(), $peminjaman);
+
+        abort_unless(
+            in_array($peminjaman->peminjaman_status, ['Disetujui', 'Selesai'], true),
+            422,
+            'Surat hanya bisa dicetak setelah seluruh tahap approval selesai.'
+        );
+
+        if (! $peminjaman->surat_nomor) {
+            $peminjaman->update(['surat_nomor' => $this->generateSuratNomor('surat_nomor')]);
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('surat.peminjaman', ['peminjaman' => $peminjaman->fresh('bookable')]);
+
+        return $pdf->stream("surat-peminjaman-{$peminjaman->peminjaman_code}.pdf");
+    }
+
+    /**
+     * Cetak surat pembatalan otomatis (panduan pengembangan fitur poin 6)
+     * - muncul begitu status jadi 'Dibatalkan' (poin 4). Hasil cetakan ini
+     * bisa dipakai admin buat mengisi form upload surat pembatalan di
+     * poin 4 (unduh dari sini, unggah lagi lewat panel "Surat Pembatalan"
+     * di halaman detail) - keduanya sengaja dibuat sebagai 2 langkah
+     * terpisah, bukan auto-attach, supaya admin tetap bisa mengganti surat
+     * pembatalan dengan versi lain (mis. yang sudah ditandatangani basah
+     * &amp; discan) kalau diperlukan.
+     */
+    public function cetakSuratPembatalan(Request $request, MessBorrowing $peminjaman)
+    {
+        $this->authorizeView($request->user(), $peminjaman);
+
+        abort_unless($peminjaman->peminjaman_status === 'Dibatalkan', 422, 'Surat pembatalan hanya bisa dicetak untuk peminjaman yang sudah dibatalkan.');
+
+        if (! $peminjaman->surat_pembatalan_nomor) {
+            $peminjaman->update(['surat_pembatalan_nomor' => $this->generateSuratNomor('surat_pembatalan_nomor')]);
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('surat.pembatalan', ['peminjaman' => $peminjaman->fresh(['bookable', 'canceller'])]);
+
+        return $pdf->stream("surat-pembatalan-{$peminjaman->peminjaman_code}.pdf");
+    }
+
+    /**
+     * Nomor surat digenerate SEKALI lalu disimpan (dipanggil hanya kalau
+     * kolomnya masih kosong, lihat cetakSurat()/cetakSuratPembatalan() di
+     * atas) supaya tetap sama kalau dicetak ulang berkali-kali. Sequence
+     * dihitung dari total surat sejenis yang sudah pernah diterbitkan
+     * (bukan direset per tahun - belum ada kolom "surat diterbitkan
+     * kapan" terpisah dari created_at booking-nya, jadi disederhanakan
+     * dulu sesuai keputusan pakai format generik).
+     */
+    private function generateSuratNomor(string $column): string
+    {
+        $tahun = now()->year;
+        $bulanRomawi = self::ROMAN_MONTHS[now()->month];
+        $sequence = MessBorrowing::whereNotNull($column)->count() + 1;
+
+        do {
+            $candidate = sprintf('%03d/PMB/%s/%d', $sequence, $bulanRomawi, $tahun);
+            $taken = MessBorrowing::where($column, $candidate)->exists();
+            $sequence++;
+        } while ($taken);
+
+        return $candidate;
     }
 
     /**

@@ -72,6 +72,12 @@
                         @if($peminjaman->needsCancellationLetter())
                             <span class="badge bg-warning text-dark px-3 py-2 fs-6 shadow-sm d-block"><i class="ti ti-alert-triangle me-1"></i>Surat pembatalan belum diupload</span>
                         @endif
+
+                        @if(in_array($peminjaman->peminjaman_status, ['Disetujui', 'Selesai'], true))
+                            <a href="{{ route('peminjaman.cetak-surat', $peminjaman->id) }}" target="_blank" class="btn btn-outline-dark btn-sm d-block mt-2">
+                                <i class="ti ti-printer me-1"></i>Cetak Surat
+                            </a>
+                        @endif
                     </div>
                 </div>
 
@@ -352,6 +358,12 @@
                 @else
                     <div class="alert alert-warning py-2 mb-3"><i class="ti ti-alert-triangle me-1"></i>Surat pembatalan belum diupload.</div>
                 @endif
+
+                <a href="{{ route('peminjaman.cetak-surat-pembatalan', $peminjaman->id) }}" target="_blank" class="btn btn-outline-dark btn-sm w-100 mb-3">
+                    <i class="ti ti-printer me-1"></i>Cetak Surat Pembatalan
+                </a>
+                <div class="form-text small mb-3">Cetak dulu suratnya, lalu unggah hasilnya (atau versi yang sudah ditandatangani) lewat form di bawah ini.</div>
+
                 <form class="ajax-form" action="{{ route('peminjaman.cancellation-letter', $peminjaman->id) }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     <label class="form-label small fw-semibold">{{ $peminjaman->cancellation_letter ? 'Ganti Surat' : 'Upload Surat' }} (PDF/JPG/PNG)</label>
