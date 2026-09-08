@@ -1,9 +1,19 @@
 @extends('layouts.app')
 
+@php
+    $ratingAverage = $kamar->ratings()->avg('rating');
+    $ratingCount = $kamar->ratings()->count();
+@endphp
+
 @section('content')
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h4 mb-0">{{ $kamar->nama_kamar }}</h1>
+        <h1 class="h4 mb-0">
+            {{ $kamar->nama_kamar }}
+            @if($ratingCount > 0)
+                <span class="fs-6 fw-normal text-warning ms-2"><i class="ti ti-star-filled"></i> {{ number_format($ratingAverage, 1) }} <span class="text-secondary">({{ $ratingCount }} ulasan)</span></span>
+            @endif
+        </h1>
         <div>
             <a href="{{ route('kamars.edit', $kamar) }}" class="btn btn-outline-primary">Edit</a>
             <a href="{{ route('messes.kamars.index', $kamar->mess_id) }}" class="btn btn-secondary">Kembali</a>

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Bungalow;
 use App\Models\Jabatan;
+use App\Models\UnitPhoto;
 use App\Models\UnitPrice;
 use App\Support\AccessMatrix;
 use Illuminate\Http\Request;
@@ -50,7 +51,9 @@ class BungalowController extends Controller
 
         $data = $this->validated($request);
         $harga = $data['harga'] ?? [];
-        unset($data['harga']);
+        $galeri = $data['galeri'] ?? [];
+        $data['fasilitas'] = $this->parseFasilitas($data['fasilitas'] ?? null);
+        unset($data['harga'], $data['galeri']);
 
         if ($request->hasFile('foto')) {
             $data['foto'] = $request->file('foto')->store('bungalows', 'public');
@@ -58,6 +61,7 @@ class BungalowController extends Controller
 
         $bungalow = Bungalow::create($data);
         $this->savePrices($bungalow, $harga);
+        $this->saveGaleri($bungalow, $galeri);
 
         ActivityLog::record($request->user(), 'create', 'bungalow', (string) $bungalow->id, "Menambahkan Bungalow: {$bungalow->nama}");
 
@@ -75,7 +79,7 @@ class BungalowController extends Controller
     {
         $this->authorizeAction($request, 'update');
 
-        $bungalow->load('prices');
+        $bungalow->load(['prices', 'photos']);
         $jabatans = $this->jabatansForPricing($bungalow->minimum_jabatan);
 
         return view('bungalows.edit', [
@@ -92,7 +96,9 @@ class BungalowController extends Controller
 
         $data = $this->validated($request);
         $harga = $data['harga'] ?? [];
-        unset($data['harga']);
+        $galeri = $data['galeri'] ?? [];
+        $data['fasilitas'] = $this->parseFasilitas($data['fasilitas'] ?? null);
+        unset($data['harga'], $data['galeri']);
 
         if ($request->hasFile('foto')) {
             $data['foto'] = $request->file('foto')->store('bungalows', 'public');
@@ -100,6 +106,7 @@ class BungalowController extends Controller
 
         $bungalow->update($data);
         $this->savePrices($bungalow, $harga);
+        $this->saveGaleri($bungalow, $galeri);
 
         ActivityLog::record($request->user(), 'update', 'bungalow', (string) $bungalow->id, "Memperbarui Bungalow: {$bungalow->nama}");
 
@@ -131,6 +138,9 @@ class BungalowController extends Controller
             'alamat' => ['required', 'string', 'max:255'],
             'deskripsi' => ['nullable', 'string'],
             'foto' => ['nullable', 'image', 'max:2048'],
+            'fasilitas' => ['nullable', 'string'],
+            'galeri' => ['nullable', 'array'],
+            'galeri.*' => ['image', 'max:2048'],
             'kapasitas' => ['required', 'integer', 'min:1'],
             'minimum_jabatan' => ['required', Rule::exists('jabatans', 'nama')->where('status', 'Aktif')],
             'status' => ['required', 'in:aktif,nonaktif'],
@@ -181,5 +191,35 @@ class BungalowController extends Controller
             403,
             "Anda tidak memiliki akses '{$action}' pada data Bungalow."
         );
+    }
+
+    /**
+     * Sama seperti MessController::parseFasilitas()/saveGaleri() - lihat
+     * catatan di sana.
+     */
+    private function parseFasilitas(?string $raw): ?array
+    {
+        if (blank($raw)) {
+            return null;
+        }
+
+        $items = array_filter(array_map('trim', explode(',', $raw)));
+
+        return empty($items) ? null : array_values($items);
+    }
+
+    private function saveGaleri(Bungalow $bungalow, array $files): void
+    {
+        $urutan = $bungalow->photos()->max('urutan') ?? 0;
+
+        foreach ($files as $file) {
+            $urutan++;
+            UnitPhoto::create([
+                'bookable_type' => Bungalow::class,
+                'bookable_id' => $bungalow->id,
+                'path' => $file->store('bungalow-galeri', 'public'),
+                'urutan' => $urutan,
+            ]);
+        }
     }
 }

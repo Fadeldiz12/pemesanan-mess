@@ -18,11 +18,17 @@
         ]],
 
         ['type' => 'group', 'label' => 'Peminjaman Mess', 'icon' => 'ti ti-calendar-event', 'key' => 'peminjaman', 'children' => [
+            ['label' => 'Katalog Unit', 'route' => 'katalog.index', 'can' => 'peminjaman-mess'],
             ['label' => 'Ajukan Peminjaman', 'route' => 'peminjaman.create', 'can' => 'peminjaman-mess', 'action' => 'create'],
             ['label' => 'Daftar Peminjaman', 'route' => 'peminjaman-mess.index', 'can' => 'peminjaman-mess'],
         ]],
 
         ['type' => 'link', 'label' => 'Approval', 'icon' => 'ti ti-checkup-list', 'route' => 'approval.index', 'can' => 'approval'],
+
+        ['type' => 'group', 'label' => 'Pengeluaran', 'icon' => 'ti ti-receipt', 'key' => 'pengeluaran', 'children' => [
+            ['label' => 'Catat Pengeluaran', 'route' => 'pengeluaran.create', 'can' => 'pengeluaran', 'action' => 'create'],
+            ['label' => 'Rekap Pengeluaran', 'route' => 'pengeluaran.index', 'can' => 'pengeluaran'],
+        ]],
 
         ['type' => 'group', 'label' => 'Laporan', 'icon' => 'ti ti-file-spreadsheet', 'key' => 'laporan', 'children' => [
             ['label' => 'Laporan Peminjaman', 'route' => 'mess-reports.index', 'can' => 'reports'],

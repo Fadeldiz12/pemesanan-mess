@@ -18,6 +18,7 @@ class Rating extends Model
         'bookable_type',
         'bookable_id',
         'user_id',
+        'reviewer_name',
         'rating',
         'review',
     ];

@@ -31,7 +31,7 @@ class AccessMatrix
 
     public static function actions(): array
     {
-        return ['read', 'create', 'update', 'delete', 'approve', 'export'];
+        return ['read', 'create', 'update', 'delete', 'approve', 'export', 'cancel'];
     }
 
     public static function menus(): array
@@ -50,7 +50,13 @@ class AccessMatrix
             // row role_permissions-nya sama sekali.
             'mess' => ['label' => 'Mess & Kamar', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
             'bungalow' => ['label' => 'Bungalow', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
-            'peminjaman-mess' => ['label' => 'Peminjaman Mess/Bungalow', 'group' => 'Peminjaman', 'actions' => ['read', 'create', 'approve', 'update', 'export']],
+            'peminjaman-mess' => ['label' => 'Peminjaman Mess/Bungalow', 'group' => 'Peminjaman', 'actions' => ['read', 'create', 'approve', 'update', 'export', 'cancel']],
+            // ⬇️ Modul Pengeluaran Mess/Bungalow (Superadmin) - lihat
+            // panduan pengembangan fitur. Sengaja TIDAK dikasih baris di
+            // defaults() supaya cuma Super Admin (bypass total di
+            // AccessMatrix::can()) yang punya akses by default; role lain
+            // bisa diberi akses belakangan lewat halaman Management Akses.
+            'pengeluaran' => ['label' => 'Pengeluaran Mess/Bungalow', 'group' => 'Pengeluaran', 'actions' => ['read', 'create', 'update', 'delete', 'export']],
             'vehicle-types' => ['group' => 'Master Data', 'label' => 'Jenis Kendaraan', 'actions' => ['read', 'create', 'update', 'delete']],
             'vehicles' => ['label' => 'Kendaraan', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
             'drivers' => ['label' => 'Supir', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
@@ -76,7 +82,12 @@ class AccessMatrix
                 'jabatan' => ['read', 'create', 'update', 'delete'],
                 'mess' => ['read', 'create', 'update', 'delete'],
                 'bungalow' => ['read', 'create', 'update', 'delete'],
-                'peminjaman-mess' => ['read', 'approve', 'update', 'export'],
+                // 'cancel' (Batalkan Peminjaman) SENGAJA cuma dikasih ke
+                // 'Admin' (bukan Staff/Kasubbag/Kabag Approval walau
+                // mereka juga punya 'approve') - panduan pengembangan
+                // fitur poin 4 minta pembatalan jadi wewenang admin/
+                // validator final, bukan tangga approval per departemen.
+                'peminjaman-mess' => ['read', 'approve', 'update', 'export', 'cancel'],
                 'vehicle-types' => ['read', 'create', 'update', 'delete'],
                 'vehicles' => ['read', 'create', 'update'],
                 'drivers' => ['read', 'create', 'update'],

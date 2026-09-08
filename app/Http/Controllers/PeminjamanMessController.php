@@ -11,6 +11,7 @@ use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -20,6 +21,11 @@ class PeminjamanMessController extends Controller
     private const BOOKABLE_MAP = [
         'kamar' => Kamar::class,
         'bungalow' => Bungalow::class,
+    ];
+
+    private const ROMAN_MONTHS = [
+        1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI',
+        7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
     ];
 
     /**
@@ -100,7 +106,18 @@ class PeminjamanMessController extends Controller
             ->filter(fn ($unit) => MessBorrowing::jabatanLevel($unit->minimum_jabatan) <= $jabatan->level)
             ->map(fn ($unit) => ['unit' => $unit, 'harga' => $unit->priceFor($jabatan)]);
 
-        return view('peminjaman-mess.pilih-unit', compact('step1', 'units', 'jabatan'));
+        // Unit "ter-pilih otomatis" (poin 1 panduan pengembangan fitur) -
+        // datang dari tombol "Pesan Sekarang" di halaman Katalog. Kalau
+        // unit itu masih memenuhi syarat kapasitas/jabatan di atas,
+        // majukan ke urutan pertama supaya otomatis ke-checklist; kalau
+        // sudah tidak memenuhi syarat, tetap tampilkan daftar lengkap
+        // seperti biasa (silent fallback, bukan error).
+        $preselectUnitId = $request->integer('preselect_unit_id') ?: null;
+        if ($preselectUnitId) {
+            $units = $units->sortByDesc(fn ($row) => $row['unit']->id === $preselectUnitId)->values();
+        }
+
+        return view('peminjaman-mess.pilih-unit', compact('step1', 'units', 'jabatan', 'preselectUnitId'));
     }
 
     public function show(Request $request, MessBorrowing $peminjaman)
@@ -419,6 +436,178 @@ class PeminjamanMessController extends Controller
         ActivityLog::record($user, 'cancel', 'peminjaman_mess', (string) $peminjaman->id, "Membatalkan pengajuan {$peminjaman->peminjaman_code}");
 
         return response()->json(['message' => 'Pengajuan berhasil dibatalkan.']);
+    }
+
+    /**
+     * Pembatalan booking dari sisi Admin (panduan pengembangan fitur poin
+     * 4) - terpisah dari approve/reject di atas & dari destroy() (yang itu
+     * pembatalan oleh PEMOHON sebelum disetujui). Sengaja pakai gate
+     * 'cancel' sendiri (bukan numpang 'approve') supaya wewenangnya bisa
+     * diatur terpisah lewat Management Akses - default cuma role 'Admin'
+     * yang dikasih (lihat AccessMatrix::defaults()), bukan Staff/Kasubbag/
+     * Kabag Approval walau mereka juga punya 'approve'.
+     */
+    public function cancel(Request $request, MessBorrowing $peminjaman): JsonResponse
+    {
+        $this->authorizeAction($request, 'cancel');
+
+        if (in_array($peminjaman->peminjaman_status, ['Selesai', 'Ditolak', 'Dibatalkan'], true)) {
+            return response()->json(['message' => 'Peminjaman dengan status ini tidak dapat dibatalkan.'], 422);
+        }
+
+        $validated = $request->validate([
+            'alasan' => ['required', 'string', 'max:500'],
+        ]);
+
+        $user = $request->user();
+
+        $peminjaman->update([
+            'peminjaman_status' => 'Dibatalkan',
+            'approval_status' => 'Dibatalkan',
+            'cancelled_by' => $user->id,
+            'cancelled_at' => now(),
+            'cancellation_reason' => $validated['alasan'],
+        ]);
+
+        ActivityLog::record($user, 'cancel_by_admin', 'peminjaman_mess', (string) $peminjaman->id, "Membatalkan peminjaman {$peminjaman->peminjaman_code}: {$validated['alasan']}");
+
+        return response()->json($peminjaman->fresh());
+    }
+
+    /**
+     * Upload surat pembatalan belakangan - sifatnya opsional saat
+     * pembatalan terjadi (cancel() di atas tidak mensyaratkan surat ada
+     * dulu), makanya endpoint ini terpisah & bisa dipanggil kapan saja
+     * setelah status jadi 'Dibatalkan' untuk menghilangkan warning di
+     * halaman detail/listing.
+     */
+    public function uploadCancellationLetter(Request $request, MessBorrowing $peminjaman): JsonResponse
+    {
+        $this->authorizeAction($request, 'cancel');
+
+        if ($peminjaman->peminjaman_status !== 'Dibatalkan') {
+            return response()->json(['message' => 'Surat pembatalan hanya berlaku untuk peminjaman yang sudah dibatalkan.'], 422);
+        }
+
+        $validated = $request->validate([
+            'surat_pembatalan' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:4096'],
+        ]);
+
+        if ($peminjaman->cancellation_letter) {
+            Storage::disk('public')->delete($peminjaman->cancellation_letter);
+        }
+
+        $peminjaman->update([
+            'cancellation_letter' => $request->file('surat_pembatalan')->store('surat-pembatalan', 'public'),
+        ]);
+
+        ActivityLog::record($request->user(), 'upload_cancellation_letter', 'peminjaman_mess', (string) $peminjaman->id, "Mengupload surat pembatalan {$peminjaman->peminjaman_code}");
+
+        return response()->json($peminjaman->fresh());
+    }
+
+    /**
+     * Generate link rating sekali pakai (panduan pengembangan fitur poin
+     * 5) - admin generate manual per peminjaman yang sudah selesai, lalu
+     * dikirim sendiri ke tamu lewat WA/email (sistem tidak mengirim
+     * otomatis). Reuse gate 'update' (bukan bikin action baru) karena
+     * sama-sama wewenang admin final, konsisten dengan updateWaktu().
+     */
+    public function generateRatingLink(Request $request, MessBorrowing $peminjaman): JsonResponse
+    {
+        $this->authorizeAction($request, 'update');
+
+        if (! $peminjaman->canGenerateRatingLink()) {
+            $message = $peminjaman->peminjaman_status !== 'Selesai'
+                ? 'Link rating hanya bisa dibuat untuk peminjaman yang sudah selesai.'
+                : 'Peminjaman ini sudah pernah diberi rating.';
+
+            return response()->json(['message' => $message], 422);
+        }
+
+        do {
+            $token = Str::random(48);
+        } while (MessBorrowing::where('rating_token', $token)->exists());
+
+        $peminjaman->update(['rating_token' => $token]);
+
+        ActivityLog::record($request->user(), 'generate_rating_link', 'peminjaman_mess', (string) $peminjaman->id, "Membuat link rating untuk {$peminjaman->peminjaman_code}");
+
+        return response()->json($peminjaman->fresh());
+    }
+
+    /**
+     * Cetak surat persetujuan otomatis (panduan pengembangan fitur poin
+     * 6) - muncul setelah SELURUH tahap approval lolos. Format surat
+     * generik dulu (belum ada format resmi baku yang disepakati) - lihat
+     * resources/views/surat/peminjaman.blade.php.
+     */
+    public function cetakSurat(Request $request, MessBorrowing $peminjaman)
+    {
+        $this->authorizeView($request->user(), $peminjaman);
+
+        abort_unless(
+            in_array($peminjaman->peminjaman_status, ['Disetujui', 'Selesai'], true),
+            422,
+            'Surat hanya bisa dicetak setelah seluruh tahap approval selesai.'
+        );
+
+        if (! $peminjaman->surat_nomor) {
+            $peminjaman->update(['surat_nomor' => $this->generateSuratNomor('surat_nomor')]);
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('surat.peminjaman', ['peminjaman' => $peminjaman->fresh('bookable')]);
+
+        return $pdf->stream("surat-peminjaman-{$peminjaman->peminjaman_code}.pdf");
+    }
+
+    /**
+     * Cetak surat pembatalan otomatis (panduan pengembangan fitur poin 6)
+     * - muncul begitu status jadi 'Dibatalkan' (poin 4). Hasil cetakan ini
+     * bisa dipakai admin buat mengisi form upload surat pembatalan di
+     * poin 4 (unduh dari sini, unggah lagi lewat panel "Surat Pembatalan"
+     * di halaman detail) - keduanya sengaja dibuat sebagai 2 langkah
+     * terpisah, bukan auto-attach, supaya admin tetap bisa mengganti surat
+     * pembatalan dengan versi lain (mis. yang sudah ditandatangani basah
+     * &amp; discan) kalau diperlukan.
+     */
+    public function cetakSuratPembatalan(Request $request, MessBorrowing $peminjaman)
+    {
+        $this->authorizeView($request->user(), $peminjaman);
+
+        abort_unless($peminjaman->peminjaman_status === 'Dibatalkan', 422, 'Surat pembatalan hanya bisa dicetak untuk peminjaman yang sudah dibatalkan.');
+
+        if (! $peminjaman->surat_pembatalan_nomor) {
+            $peminjaman->update(['surat_pembatalan_nomor' => $this->generateSuratNomor('surat_pembatalan_nomor')]);
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('surat.pembatalan', ['peminjaman' => $peminjaman->fresh(['bookable', 'canceller'])]);
+
+        return $pdf->stream("surat-pembatalan-{$peminjaman->peminjaman_code}.pdf");
+    }
+
+    /**
+     * Nomor surat digenerate SEKALI lalu disimpan (dipanggil hanya kalau
+     * kolomnya masih kosong, lihat cetakSurat()/cetakSuratPembatalan() di
+     * atas) supaya tetap sama kalau dicetak ulang berkali-kali. Sequence
+     * dihitung dari total surat sejenis yang sudah pernah diterbitkan
+     * (bukan direset per tahun - belum ada kolom "surat diterbitkan
+     * kapan" terpisah dari created_at booking-nya, jadi disederhanakan
+     * dulu sesuai keputusan pakai format generik).
+     */
+    private function generateSuratNomor(string $column): string
+    {
+        $tahun = now()->year;
+        $bulanRomawi = self::ROMAN_MONTHS[now()->month];
+        $sequence = MessBorrowing::whereNotNull($column)->count() + 1;
+
+        do {
+            $candidate = sprintf('%03d/PMB/%s/%d', $sequence, $bulanRomawi, $tahun);
+            $taken = MessBorrowing::where($column, $candidate)->exists();
+            $sequence++;
+        } while ($taken);
+
+        return $candidate;
     }
 
     /**

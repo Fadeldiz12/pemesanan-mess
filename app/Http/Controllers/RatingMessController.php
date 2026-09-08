@@ -39,6 +39,7 @@ class RatingMessController extends Controller
             'bookable_type' => $peminjaman->bookable_type,
             'bookable_id' => $peminjaman->bookable_id,
             'user_id' => $user->id,
+            'reviewer_name' => $peminjaman->peminjam_name,
             'rating' => $validated['rating'],
             'review' => $validated['review'] ?? null,
         ]);

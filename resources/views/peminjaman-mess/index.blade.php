@@ -16,6 +16,7 @@
         'Ditolak' => 'danger',
         'Perlu Reschedule' => 'primary',
         'Diajukan' => 'info',
+        'Dibatalkan' => 'dark',
     ];
 @endphp
 
@@ -85,6 +86,9 @@
                             <span class="badge bg-{{ $badgeColor }}-subtle text-{{ $badgeColor }} px-2 py-1">
                                 {{ $displayStatus }}
                             </span>
+                            @if($item->needsCancellationLetter())
+                                <span class="badge bg-warning text-dark px-2 py-1 d-block mt-1"><i class="ti ti-alert-triangle me-1"></i>Surat belum diupload</span>
+                            @endif
                         </td>
                         <td class="action-data text-center pe-4" data-label="Aksi">
                             <a href="{{ route('peminjaman.show', $item) }}" class="btn btn-light btn-sm shadow-sm border">
