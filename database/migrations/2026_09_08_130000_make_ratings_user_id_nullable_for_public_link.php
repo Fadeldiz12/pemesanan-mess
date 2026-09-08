@@ -55,6 +55,38 @@ return new class extends Migration
             });
         }
 
+        // Beda dari nama index biasa (scoped per-tabel di MySQL, gak akan
+        // bentrok), nama CONSTRAINT FOREIGN KEY di MySQL/InnoDB itu unik
+        // SATU DATABASE - RENAME TABLE di atas TIDAK ikut mengganti nama
+        // constraint-nya, jadi ratings_old masih "memegang" nama
+        // ratings_peminjaman_id_foreign & ratings_user_id_foreign (konvensi
+        // penamaan FK Laravel: {tabel}_{kolom}_foreign, dihitung dari nama
+        // tabel SAAT FK itu dibuat, bukan nama tabel sekarang). Nama itu
+        // wajib dilepas dulu sebelum tabel `ratings` baru bisa dibuat
+        // dengan FK bernama sama persis - baru ketauan lewat error 1826
+        // ("Duplicate foreign key constraint name") setelah error 1553
+        // (index) di atas diperbaiki.
+        if (Schema::hasTable('ratings_old') && DB::connection()->getDriverName() !== 'sqlite') {
+            // Dicek satu-satu (bukan langsung drop) supaya tetap aman kalau
+            // migration ini sempat gagal PERSIS di tengah blok ini pada
+            // percobaan sebelumnya (satu constraint sudah kelanjur ke-drop,
+            // satu lagi belum) - dropForeign() atas constraint yang sudah
+            // gak ada bakal error, bukan no-op.
+            $existingForeignKeys = DB::table('information_schema.TABLE_CONSTRAINTS')
+                ->where('CONSTRAINT_SCHEMA', DB::connection()->getDatabaseName())
+                ->where('TABLE_NAME', 'ratings_old')
+                ->where('CONSTRAINT_TYPE', 'FOREIGN KEY')
+                ->pluck('CONSTRAINT_NAME');
+
+            Schema::table('ratings_old', function (Blueprint $table) use ($existingForeignKeys) {
+                foreach (['ratings_peminjaman_id_foreign', 'ratings_user_id_foreign'] as $constraint) {
+                    if ($existingForeignKeys->contains($constraint)) {
+                        $table->dropForeign($constraint);
+                    }
+                }
+            });
+        }
+
         if (! Schema::hasTable('ratings')) {
             Schema::create('ratings', function (Blueprint $table) {
                 $table->id();
