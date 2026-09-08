@@ -11,9 +11,7 @@
                 <h2 class="fs-5 mb-0"><i class="ti ti-lock me-2 text-primary"></i>Ubah Password</h2>
             </div>
             <div class="card-body">
-                {{-- TODO: route proses ubah password belum ada di web.php, baru GET /password/edit.
-                     Tambahkan mis. Route::put('/password', ...)->name('password.update') lalu ganti action di bawah. --}}
-                <form action="#" method="POST">
+                <form action="{{ route('password.update') }}" method="POST">
                     @csrf
                     @method('PUT')
 

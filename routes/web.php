@@ -15,6 +15,8 @@ use App\Http\Controllers\JabatanController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\MessReportController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Middleware\ForceChangePassword;
+use App\Http\Middleware\UserIsActive;
 use Illuminate\Support\Facades\Route;
 
 // Redirect halaman utama ke daftar peminjaman mess
@@ -25,16 +27,22 @@ Route::get('/login', [AuthController::class, 'showLogin'])->name('login')->middl
 Route::post('/login', [AuthController::class, 'login'])->name('login.process')->middleware('guest');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
 
-// Rute untuk melihat UI Ubah Password (Testing View)
-Route::get('/password/edit', function () {
-    return view('auth.passwords.edit');
-})->name('password.edit');
+// UserIsActive: paksa logout kalau akun dinonaktifkan Super Admin di tengah
+// sesi yang masih berjalan. ForceChangePassword: paksa ganti password dulu
+// (dicek lewat routeIs('password.*') di middleware-nya sendiri) sebelum
+// bisa akses halaman lain - sebelumnya kedua middleware ini gak pernah
+// didaftarkan di mana pun jadi gak pernah benar-benar jalan.
+Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->group(function () {
 
-Route::get('/dashboard', function () {
-    return view('dashboard.index');
-})->name('dashboard');
+    // Ubah Password
+    Route::get('/password/edit', function () {
+        return view('auth.passwords.edit');
+    })->name('password.edit');
+    Route::put('/password', [AuthController::class, 'updatePassword'])->name('password.update');
 
-Route::middleware(['auth'])->group(function () {
+    Route::get('/dashboard', function () {
+        return view('dashboard.index');
+    })->name('dashboard');
 
     // Katalog & Halaman Pemesanan Utama
     Route::get('/peminjaman-mess', [PeminjamanMessController::class, 'index'])->name('peminjaman-mess.index');

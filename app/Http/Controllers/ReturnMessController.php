@@ -16,6 +16,10 @@ class ReturnMessController extends Controller
 
         $user = $request->user();
 
+        if ($peminjaman->created_by !== $user->id && !in_array($user->role, ['Admin', 'Super Admin'], true)) {
+            abort(403, 'Hanya pemohon atau Admin yang dapat mengonfirmasi pengembalian peminjaman ini.');
+        }
+
         if ($peminjaman->peminjaman_status !== 'Disetujui') {
             return response()->json([
                 'message' => 'Hanya peminjaman berstatus Disetujui yang dapat dikonfirmasi pengembaliannya.',
@@ -39,13 +43,7 @@ class ReturnMessController extends Controller
             'peminjaman_status' => 'Selesai',
         ]);
 
-        // ActivityLog::record(
-        //     $user, 
-        //     'return', 
-        //     'peminjaman_mess', 
-        //     (string) $peminjaman->id, 
-        //     "Konfirmasi pengembalian {$peminjaman->peminjaman_code}"
-        // );
+        ActivityLog::record($user, 'return', 'peminjaman_mess', (string) $peminjaman->id, "Konfirmasi pengembalian {$peminjaman->peminjaman_code}");
 
         return response()->json($peminjaman->fresh());
     }
