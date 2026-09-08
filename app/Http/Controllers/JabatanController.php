@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\Bungalow;
 use App\Models\Jabatan;
 use App\Models\Kamar;
+use App\Models\MessBorrowing;
 use App\Models\UnitPrice;
 use App\Support\AccessMatrix;
 use Illuminate\Http\Request;
@@ -78,6 +79,7 @@ class JabatanController extends Controller
         if ($originalNama !== $jabatan->nama) {
             Kamar::where('minimum_jabatan', $originalNama)->update(['minimum_jabatan' => $jabatan->nama]);
             Bungalow::where('minimum_jabatan', $originalNama)->update(['minimum_jabatan' => $jabatan->nama]);
+            MessBorrowing::where('peminjam_jabatan', $originalNama)->update(['peminjam_jabatan' => $jabatan->nama]);
         }
 
         ActivityLog::record($request->user(), 'Edit Jabatan', 'Jabatan', $jabatan->id, $jabatan->nama);
@@ -90,7 +92,7 @@ class JabatanController extends Controller
         $this->authorizeAction($request, 'delete');
 
         if ($this->isInUse($jabatan)) {
-            return back()->with('warning', "Jabatan '{$jabatan->nama}' tidak bisa dihapus karena masih dipakai sebagai syarat minimum di Kamar/Bungalow. Ubah dulu syarat unit tersebut.");
+            return back()->with('warning', "Jabatan '{$jabatan->nama}' tidak bisa dihapus karena masih dipakai sebagai syarat minimum di Kamar/Bungalow atau jabatan tamu pada suatu peminjaman.");
         }
 
         ActivityLog::record($request->user(), 'Hapus Jabatan', 'Jabatan', $jabatan->id, $jabatan->nama);
@@ -103,7 +105,8 @@ class JabatanController extends Controller
     {
         return Kamar::where('minimum_jabatan', $jabatan->nama)->exists()
             || Bungalow::where('minimum_jabatan', $jabatan->nama)->exists()
-            || UnitPrice::where('jabatan_id', $jabatan->id)->exists();
+            || UnitPrice::where('jabatan_id', $jabatan->id)->exists()
+            || MessBorrowing::where('peminjam_jabatan', $jabatan->nama)->exists();
     }
 
     private function validated(Request $request, ?int $id = null): array

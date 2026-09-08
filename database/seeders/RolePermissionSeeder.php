@@ -43,7 +43,7 @@ class RolePermissionSeeder extends Seeder
             'User' => [
                 'mess' => ['read'],
                 'bungalow' => ['read'],
-                'peminjaman-mess' => ['read', 'create'],
+                'peminjaman-mess' => ['read'],
             ],
             'Staff Approval' => [
                 'mess' => ['read'],
@@ -53,17 +53,17 @@ class RolePermissionSeeder extends Seeder
             'Kasubbag Approval' => [
                 'mess' => ['read'],
                 'bungalow' => ['read'],
-                'peminjaman-mess' => ['read', 'create', 'approve'],
+                'peminjaman-mess' => ['read', 'approve'],
             ],
             'Kabag Approval' => [
                 'mess' => ['read'],
                 'bungalow' => ['read'],
-                'peminjaman-mess' => ['read', 'create', 'approve'],
+                'peminjaman-mess' => ['read', 'approve'],
             ],
             'Admin' => [
                 'mess' => ['read', 'create', 'update', 'delete'],
                 'bungalow' => ['read', 'create', 'update', 'delete'],
-                'peminjaman-mess' => ['read', 'create', 'approve', 'update', 'export'],
+                'peminjaman-mess' => ['read', 'approve', 'update', 'export'],
                 'users' => ['read', 'create', 'update', 'delete'],
                 'role-access' => ['read', 'update'],
                 'jabatan' => ['read', 'create', 'update', 'delete'],
