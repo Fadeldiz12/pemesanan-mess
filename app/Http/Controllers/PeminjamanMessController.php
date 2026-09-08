@@ -6,7 +6,6 @@ use App\Models\ActivityLog;
 use App\Models\Bungalow;
 use App\Models\Jabatan;
 use App\Models\Kamar;
-use App\Models\Mess;
 use App\Models\MessBorrowing;
 use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
@@ -62,37 +61,46 @@ class PeminjamanMessController extends Controller
     }
 
     /**
-     * Menampilkan form pengajuan peminjaman berdasarkan unit (Kamar/Bungalow) yang dipilih.
+     * Tahap 1: Form data tamu (nama, telepon, jabatan, jumlah tamu, jenis
+     * unit, tanggal masuk-selesai) - diisi oleh Admin Sub Bagian (role
+     * 'Staff Approval') untuk tamu yang gak punya akun sama sekali, BUKAN
+     * form self-service lagi. Submit form ini lanjut ke pilihUnit() buat
+     * pilih unit spesifik di tahap 2.
      */
     public function create(Request $request)
     {
         $this->authorizeAction($request, 'create');
 
-        $eligibleJabatan = $this->eligibleJabatan($request->user()->role);
+        $jabatans = Jabatan::where('status', 'Aktif')->orderByDesc('level')->orderBy('nama')->get();
 
-        // status_ketersediaan cuma punya 2 nilai valid (Kamar::STATUS_KETERSEDIAAN):
-        // 'Aktif' / 'Tidak Aktif' - sama seperti pola Mess/Bungalow, diisi manual
-        // oleh Admin lewat form Kamar. SEBELUMNYA di sini filternya 'Tersedia'
-        // (nilai yang gak pernah ada di enum aslinya, cuma sisa default kolom di
-        // migration), jadi kamar apa pun gak akan pernah kena filter ini - semua
-        // kamar selalu keliatan "gak tersedia" walau statusnya Aktif. Ketersediaan
-        // per-JADWAL (bukan status manual ini) sudah ditangani terpisah lewat
-        // deteksi bentrok (MessBorrowing::bentrok()), bukan lewat kolom ini.
-        $kamarsByMess = Kamar::where('status_ketersediaan', 'Aktif')
-            ->whereIn('minimum_jabatan', $eligibleJabatan)
-            ->get()
-            ->groupBy('mess_id');
+        return view('peminjaman-mess.create', compact('jabatans'));
+    }
 
-        $messById = Mess::where('status', 'Aktif')->pluck('nama', 'id');
+    /**
+     * Tahap 2: Pilih unit. Unit yang ditampilkan difilter berdasarkan
+     * status aktif, kapasitas vs jumlah tamu (README fitur baru), dan
+     * jabatan TAMU (bukan role Admin Sub Bagian yang login) vs
+     * minimum_jabatan unit. Sekalian tampilkan harga per unit untuk
+     * jabatan tamu tsb (UnitPrice::priceFor() - sebelumnya cuma dipakai
+     * di CRUD Kamar/Bungalow, sekarang akhirnya disurfacekan ke alur
+     * pengajuan).
+     */
+    public function pilihUnit(Request $request)
+    {
+        $this->authorizeAction($request, 'create');
 
-        // Bungalow pakai konvensi status huruf kecil ('aktif'/'nonaktif'), beda
-        // dari Mess yang 'Aktif'/'Nonaktif' - sebelumnya di-query 'Aktif' (besar)
-        // di sini, jadi bungalow gak akan pernah kena filter ini.
-        $bungalows = Bungalow::where('status', 'aktif')
-            ->whereIn('minimum_jabatan', $eligibleJabatan)
-            ->get();
+        $step1 = $this->validateStep1($request);
+        $jabatan = Jabatan::where('nama', $step1['peminjam_jabatan'])->where('status', 'Aktif')->firstOrFail();
 
-        return view('peminjaman-mess.create', compact('messById', 'kamarsByMess', 'bungalows'));
+        $units = $step1['unit_type'] === 'kamar'
+            ? Kamar::where('status_ketersediaan', 'Aktif')->where('kapasitas', '>=', $step1['jumlah_tamu'])->with('mess')->get()
+            : Bungalow::where('status', 'aktif')->where('kapasitas', '>=', $step1['jumlah_tamu'])->get();
+
+        $units = $units
+            ->filter(fn ($unit) => MessBorrowing::jabatanLevel($unit->minimum_jabatan) <= $jabatan->level)
+            ->map(fn ($unit) => ['unit' => $unit, 'harga' => $unit->priceFor($jabatan)]);
+
+        return view('peminjaman-mess.pilih-unit', compact('step1', 'units', 'jabatan'));
     }
 
     public function show(Request $request, MessBorrowing $peminjaman)
@@ -128,8 +136,11 @@ class PeminjamanMessController extends Controller
     }
 
     /**
-     * Langkah 1: Pengajuan permintaan peminjaman.
-     * Menerima input dari Web Form maupun API JSON.
+     * Tahap 3 (final): Buat pengajuan. Menerima field tahap 1 (dikirim
+     * ulang sebagai hidden input dari halaman pilih-unit) + unit_id -
+     * SEMUA divalidasi ulang dari nol di sini (hidden input gak boleh
+     * dipercaya mentah-mentah begitu saja), termasuk kapasitas & kelayakan
+     * jabatan, persis seperti yang sudah dicek di pilihUnit().
      */
     public function store(Request $request)
     {
@@ -137,45 +148,42 @@ class PeminjamanMessController extends Controller
 
         $user = $request->user();
 
-        // Normalisasi tipe unit ke huruf kecil
-        if ($request->has('unit_type')) {
-            $request->merge(['unit_type' => Str::lower($request->input('unit_type'))]);
-        }
+        $step1 = $this->validateStep1($request);
+        $unitId = $request->validate(['unit_id' => ['required', 'integer']])['unit_id'];
 
-        $validated = $request->validate([
-            'unit_type' => ['required', Rule::in(array_keys(self::BOOKABLE_MAP))],
-            'unit_id' => ['required', 'integer'],
-            'waktu_mulai' => ['required', 'date', 'after_or_equal:now'],
-            'waktu_selesai' => ['required', 'date', 'after:waktu_mulai'],
-            'keperluan' => ['required', 'string', 'max:500'],
-            'note' => ['nullable', 'string', 'max:500'],
-        ]);
-
-        $bookableClass = self::BOOKABLE_MAP[$validated['unit_type']];
-        $unit = $bookableClass::findOrFail($validated['unit_id']);
+        $bookableClass = self::BOOKABLE_MAP[$step1['unit_type']];
+        $unit = $bookableClass::findOrFail($unitId);
+        $jabatan = Jabatan::where('nama', $step1['peminjam_jabatan'])->where('status', 'Aktif')->firstOrFail();
 
         $this->assertUnitAvailable($unit);
-        $this->assertJabatanEligible($unit, $user->role);
+        $this->assertCapacity($unit, $step1['jumlah_tamu']);
+        $this->assertJabatanEligible($unit, $jabatan);
 
-        $peminjaman = DB::transaction(function () use ($validated, $bookableClass, $unit, $user) {
+        $harga = $unit->priceFor($jabatan);
+
+        $peminjaman = DB::transaction(function () use ($step1, $bookableClass, $unit, $user, $jabatan, $harga) {
             return MessBorrowing::create([
                 'bookable_type' => $bookableClass,
                 'bookable_id' => $unit->id,
-                'waktu_mulai' => $validated['waktu_mulai'],
-                'waktu_selesai' => $validated['waktu_selesai'],
+                'waktu_mulai' => $step1['waktu_mulai'],
+                'waktu_selesai' => $step1['waktu_selesai'],
                 'peminjam_department' => $user->department,
                 'peminjam_sub_department' => $user->sub_department,
                 'peminjam_role' => $user->role,
-                'peminjam_name' => $user->name,
+                'peminjam_name' => $step1['nama'],
+                'peminjam_telepon' => $step1['telepon'],
+                'peminjam_jabatan' => $jabatan->nama,
                 'peminjam_username' => $user->username,
                 'peminjam_email' => $user->email,
-                'keperluan' => $validated['keperluan'],
-                'note' => $validated['note'] ?? null,
+                'jumlah_tamu' => $step1['jumlah_tamu'],
+                'keperluan' => $step1['keperluan'],
+                'harga' => $harga,
+                'note' => $step1['note'] ?? null,
                 'created_by' => $user->id,
             ]);
         });
 
-        ActivityLog::record($user, 'create', 'peminjaman_mess', (string) $peminjaman->id, "Mengajukan peminjaman {$validated['unit_type']}: {$peminjaman->peminjaman_code}");
+        ActivityLog::record($user, 'create', 'peminjaman_mess', (string) $peminjaman->id, "Mengajukan peminjaman {$step1['unit_type']} untuk {$step1['nama']}: {$peminjaman->peminjaman_code}");
 
         if ($request->wantsJson()) {
             return response()->json($peminjaman, 201);
@@ -483,34 +491,47 @@ class PeminjamanMessController extends Controller
         }
     }
 
-    private function assertJabatanEligible(Kamar|Bungalow $unit, string $peminjamRole): void
+    private function assertJabatanEligible(Kamar|Bungalow $unit, Jabatan $jabatan): void
     {
-        $minLevel = MessBorrowing::jabatanLevel($unit->minimum_jabatan);
-        $userLevel = MessBorrowing::eligibleJabatanTier($peminjamRole);
-
-        if ($userLevel < $minLevel) {
+        if ($jabatan->level < MessBorrowing::jabatanLevel($unit->minimum_jabatan)) {
             throw ValidationException::withMessages([
-                'unit_id' => "Unit ini hanya bisa dipesan oleh jabatan minimal {$unit->minimum_jabatan}.",
+                'unit_id' => "Unit ini hanya bisa dipesan untuk jabatan minimal {$unit->minimum_jabatan}.",
+            ]);
+        }
+    }
+
+    private function assertCapacity(Kamar|Bungalow $unit, int $jumlahTamu): void
+    {
+        if ($jumlahTamu > $unit->kapasitas) {
+            throw ValidationException::withMessages([
+                'jumlah_tamu' => "Unit ini hanya cukup untuk maksimal {$unit->kapasitas} orang.",
             ]);
         }
     }
 
     /**
-     * Daftar minimum_jabatan (nama jabatan dari tabel jabatans) yang boleh
-     * dilihat/dipesan oleh $role tertentu (jabatan efektifnya sendiri +
-     * semua yang levelnya di bawah). Dihitung dari tabel jabatans yang
-     * dinamis, bukan MessBorrowing::JABATAN_TIER, supaya jabatan baru di
-     * luar Staff/Kasubag/Kabag ikut terhitung benar (lihat catatan di
-     * MessBorrowing::jabatanLevel()).
+     * Validasi field tahap 1 (data tamu) - dipakai bareng oleh pilihUnit()
+     * (tahap 2) dan store() (tahap 3), supaya field yang dikirim ulang
+     * lewat hidden input dari halaman pilih-unit tetap divalidasi ulang
+     * dari nol di store(), bukan dipercaya mentah-mentah.
      */
-    private function eligibleJabatan(string $role): array
+    private function validateStep1(Request $request): array
     {
-        $userLevel = MessBorrowing::eligibleJabatanTier($role);
+        if ($request->has('unit_type')) {
+            $request->merge(['unit_type' => Str::lower($request->input('unit_type'))]);
+        }
 
-        return Jabatan::where('status', 'Aktif')
-            ->where('level', '<=', $userLevel)
-            ->pluck('nama')
-            ->all();
+        return $request->validate([
+            'nama' => ['required', 'string', 'max:150'],
+            'telepon' => ['required', 'string', 'max:30'],
+            'peminjam_jabatan' => ['required', 'string', Rule::exists('jabatans', 'nama')->where('status', 'Aktif')],
+            'jumlah_tamu' => ['required', 'integer', 'min:1'],
+            'unit_type' => ['required', Rule::in(array_keys(self::BOOKABLE_MAP))],
+            'waktu_mulai' => ['required', 'date', 'after_or_equal:now'],
+            'waktu_selesai' => ['required', 'date', 'after:waktu_mulai'],
+            'keperluan' => ['required', 'string', 'max:500'],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
     }
 
     private function currentStage(MessBorrowing $peminjaman): ?string

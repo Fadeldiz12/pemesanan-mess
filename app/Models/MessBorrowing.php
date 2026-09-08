@@ -33,11 +33,7 @@ class MessBorrowing extends Model
      * sama-sama "hirarki jabatan".
      *
      * Nilai minimum_jabatan di Kamar/Bungalow awalnya cuma 3: Staff/Kasubag/
-     * Kabag (persis istilah di README), BUKAN 6 nama role sistem. 'Admin'
-     * bukan pilihan minimum_jabatan (gak ada ruangan yang "khusus Admin"),
-     * tapi Admin/Super Admin tetap bisa pesan SEMUA ruangan karena tier
-     * mereka disamakan ke Kabag (tier tertinggi yang ada) lewat
-     * ROLE_TO_JABATAN.
+     * Kabag (persis istilah di README), BUKAN 6 nama role sistem.
      *
      * SEKARANG jabatan jadi master data dinamis (tabel `jabatans`, lihat
      * JabatanController) yang levelnya bisa beda dari 1/2/3 di sini dan
@@ -50,21 +46,6 @@ class MessBorrowing extends Model
         'Staff' => 1,
         'Kasubag' => 2,
         'Kabag' => 3,
-    ];
-
-    /**
-     * role sistem (users.role) -> jabatan efektif buat kelayakan pemesanan.
-     * Role yang gak ada di daftar ini (role custom baru, 'Supir', dst)
-     * otomatis dianggap 'Staff' (tingkat paling rendah) lewat fallback di
-     * eligibleJabatanTier().
-     */
-    public const ROLE_TO_JABATAN = [
-        'Super Admin' => 'Kabag',
-        'Admin' => 'Kabag',
-        'Kabag Approval' => 'Kabag',
-        'Kasubbag Approval' => 'Kasubag',
-        'Staff Approval' => 'Staff',
-        'User' => 'Staff',
     ];
 
     private const STAGE_ORDER = ['staff', 'kasubbag', 'kabag', 'admin'];
@@ -176,29 +157,16 @@ class MessBorrowing extends Model
     }
 
     /**
-     * Tier jabatan efektif dari sebuah role sistem, dipakai buat cek
-     * kelayakan minimum_jabatan Kamar/Bungalow. Role apa pun yang gak
-     * eksplisit dipetakan di ROLE_TO_JABATAN (role custom, 'Supir', dll)
-     * jatuh ke tier 'Staff' (paling rendah).
-     */
-    public static function eligibleJabatanTier(string $role): int
-    {
-        $jabatan = self::ROLE_TO_JABATAN[$role] ?? 'Staff';
-
-        return self::jabatanLevel($jabatan);
-    }
-
-    /**
      * Prioritas saat bentrok jadwal (README bagian 2 langkah 4) - pakai
-     * eligibleJabatanTier() (jabatan efektif pemohon, dari tabel jabatans),
-     * BUKAN rankLevel()/RANK_ORDER. RANK_ORDER itu soal urutan approval (6
-     * level, granular per role approval), sedangkan prioritas bentrok itu
-     * soal jabatan asli pemohon - dua konsep beda yang sebelumnya kepakai
-     * keliru di sini (pakai RANK_ORDER).
+     * jabatan TAMU (peminjam_jabatan, dari tabel jabatans), BUKAN
+     * peminjam_role/RANK_ORDER. peminjam_role sekarang cuma role akun
+     * Admin Sub Bagian yang mengisi pengajuan (buat self-skip approval),
+     * bukan lagi jabatan pihak yang sebenarnya menginap - prioritas
+     * bentrok harus lihat jabatan TAMU-nya, bukan admin yang input.
      */
     public function outranks(self $other): bool
     {
-        return self::eligibleJabatanTier($this->peminjam_role) > self::eligibleJabatanTier($other->peminjam_role);
+        return self::jabatanLevel($this->peminjam_jabatan) > self::jabatanLevel($other->peminjam_jabatan);
     }
 
     public function candidateApprovers(string $stage): Collection

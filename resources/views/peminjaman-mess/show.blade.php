@@ -96,6 +96,22 @@
 
                 <div class="row g-4 bg-light rounded p-4 border">
                     <div class="col-12 col-sm-6">
+                        <label class="mb-1 small text-muted d-block"><i class="ti ti-phone me-1"></i>No. Telepon Tamu</label>
+                        <div class="fs-6 fw-semibold text-dark">{{ $peminjaman->peminjam_telepon }}</div>
+                    </div>
+                    <div class="col-12 col-sm-6">
+                        <label class="mb-1 small text-muted d-block"><i class="ti ti-users me-1"></i>Jumlah Tamu</label>
+                        <div class="fs-6 fw-semibold text-dark">{{ $peminjaman->jumlah_tamu }} orang</div>
+                    </div>
+                    <div class="col-12 col-sm-6">
+                        <label class="mb-1 small text-muted d-block"><i class="ti ti-briefcase me-1"></i>Jabatan Tamu</label>
+                        <div class="fs-6 fw-semibold text-dark">{{ $peminjaman->peminjam_jabatan }}</div>
+                    </div>
+                    <div class="col-12 col-sm-6">
+                        <label class="mb-1 small text-muted d-block"><i class="ti ti-cash me-1"></i>Harga</label>
+                        <div class="fs-6 fw-semibold text-dark">Rp {{ number_format($peminjaman->harga, 0, ',', '.') }}</div>
+                    </div>
+                    <div class="col-12 col-sm-6">
                         <label class="mb-1 small text-muted d-block"><i class="ti ti-calendar-time me-1"></i>Check-in</label>
                         <div class="fs-6 fw-semibold text-dark">{{ \Carbon\Carbon::parse($peminjaman->waktu_mulai)->format('d F Y, H:i') }} WIB</div>
                     </div>

@@ -70,7 +70,8 @@
                         </td>
                         <td class="detail-data" data-label="Pemohon">
                             <div class="fw-semibold text-dark">{{ $item->peminjam_name }}</div>
-                            <div class="text-muted small">{{ $item->peminjam_role }}</div>
+                            <div class="text-muted small">{{ $item->peminjam_jabatan }}</div>
+                            <div class="text-muted small">Diajukan oleh {{ $item->peminjam_role }}</div>
                         </td>
                         <td class="detail-data" data-label="Unit">
                             <span class="badge bg-info-subtle text-info border border-info-subtle mb-1">{{ $unitLabel }}</span><br>
