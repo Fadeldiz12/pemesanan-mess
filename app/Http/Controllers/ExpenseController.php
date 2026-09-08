@@ -44,15 +44,64 @@ class ExpenseController extends Controller
         $query = $this->filtered($filters);
 
         $total = (clone $query)->sum('jumlah');
+        $perKategori = (clone $query)->selectRaw('kategori, sum(jumlah) as total')
+            ->groupBy('kategori')
+            ->orderByDesc('total')
+            ->pluck('total', 'kategori');
         $pengeluarans = (clone $query)->latest('tanggal')->latest('id')->paginate(15)->withQueryString();
 
         return view('pengeluaran.index', [
             'pengeluarans' => $pengeluarans,
             'total' => $total,
+            'perKategori' => $perKategori,
             'messes' => Mess::orderBy('nama')->get(),
             'bungalows' => Bungalow::orderBy('nama')->get(),
             'filters' => $filters,
         ]);
+    }
+
+    /**
+     * Laporan pengeluaran (panduan pengembangan fitur poin 3) - export
+     * Excel, gate berbasis menu_key 'pengeluaran' sama seperti CRUD-nya
+     * (default cuma Super Admin, konsisten dengan keputusan poin 2).
+     */
+    public function exportExcel(Request $request)
+    {
+        $this->authorizeAction($request, 'export');
+
+        $filters = $request->validate([
+            'unit_type' => ['nullable', Rule::in(array_keys(self::BOOKABLE_MAP))],
+            'unit_id' => ['nullable', 'integer'],
+            'bulan' => ['nullable', 'date_format:Y-m'],
+            'kategori' => ['nullable', Rule::in(Expense::KATEGORI_OPTIONS)],
+        ]);
+
+        ActivityLog::record($request->user(), 'export_excel', 'pengeluaran', null, 'Export laporan pengeluaran ke Excel');
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\ExpenseExport($filters),
+            'pengeluaran-' . now()->format('Ymd-His') . '.xlsx'
+        );
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $this->authorizeAction($request, 'export');
+
+        $filters = $request->validate([
+            'unit_type' => ['nullable', Rule::in(array_keys(self::BOOKABLE_MAP))],
+            'unit_id' => ['nullable', 'integer'],
+            'bulan' => ['nullable', 'date_format:Y-m'],
+            'kategori' => ['nullable', Rule::in(Expense::KATEGORI_OPTIONS)],
+        ]);
+
+        $data = $this->filtered($filters)->with('bookable')->orderByDesc('tanggal')->get();
+
+        ActivityLog::record($request->user(), 'export_pdf', 'pengeluaran', null, 'Export laporan pengeluaran ke PDF');
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.pengeluaran-pdf', ['data' => $data]);
+
+        return $pdf->download('pengeluaran-' . now()->format('Ymd-His') . '.pdf');
     }
 
     public function create(Request $request): View

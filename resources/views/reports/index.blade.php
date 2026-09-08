@@ -55,6 +55,7 @@
             'Telah Disetujui' => $summary['disetujui'],
             'Selesai Digunakan' => $summary['selesai'],
             'Ditolak' => $summary['ditolak'],
+            'Dibatalkan' => $summary['dibatalkan'],
             'Unit Terfavorit' => $summary['favorit']
         ];
     @endphp
@@ -67,6 +68,52 @@
         </div>
     </div>
     @endforeach
+</div>
+
+@if($summary['surat_pembatalan_belum'] > 0)
+    <div class="alert alert-warning py-2 mb-4">
+        <i class="ti ti-alert-triangle me-1"></i>
+        {{ $summary['surat_pembatalan_belum'] }} peminjaman dibatalkan pada periode ini belum diupload surat pembatalannya. Filter status "Dibatalkan" untuk melihat daftarnya.
+    </div>
+@endif
+
+{{-- Laporan Okupansi per Unit (poin 3 panduan pengembangan fitur) --}}
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white py-3">
+        <h2 class="fs-6 mb-0 fw-bold"><i class="ti ti-chart-bar me-2"></i>Okupansi per Unit</h2>
+        <p class="text-secondary small mb-0">Periode {{ request('date_from') ? \Carbon\Carbon::parse(request('date_from'))->format('d M Y') : now()->startOfMonth()->format('d M Y') }} - {{ request('date_to') ? \Carbon\Carbon::parse(request('date_to'))->format('d M Y') : now()->endOfMonth()->format('d M Y') }}</p>
+    </div>
+    <div class="table-responsive">
+        <table class="table mb-0 table-sm">
+            <thead class="table-light">
+                <tr>
+                    <th>Unit</th>
+                    <th>Tipe</th>
+                    <th>Jumlah Booking</th>
+                    <th>Okupansi</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($okupansi as $row)
+                    <tr>
+                        <td>{{ $row['nama'] }}</td>
+                        <td><span class="badge bg-info-subtle text-info border">{{ $row['tipe'] }}</span></td>
+                        <td>{{ $row['jumlah_booking'] }}</td>
+                        <td style="min-width:160px;">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress flex-grow-1" style="height:8px;">
+                                    <div class="progress-bar" style="width: {{ $row['okupansi_persen'] }}%"></div>
+                                </div>
+                                <span class="small text-secondary">{{ $row['okupansi_persen'] }}%</span>
+                            </div>
+                        </td>
+                    </tr>
+                @empty
+                    <tr><td colspan="4" class="text-center text-muted py-3">Belum ada unit terdaftar.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
 </div>
 
 {{-- 3. Tombol Export (Mengarah ke route PeminjamanMessController yg sudah Anda miliki) --}}
@@ -125,6 +172,9 @@
                         };
                     @endphp
                     <span class="badge {{ $badgeClass }}">{{ $b->peminjaman_status }}</span>
+                    @if($b->needsCancellationLetter())
+                        <span class="badge bg-warning text-dark d-block mt-1"><i class="ti ti-alert-triangle me-1"></i>Surat belum diupload</span>
+                    @endif
                 </td>
             </tr>
         @empty

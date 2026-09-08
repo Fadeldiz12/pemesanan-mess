@@ -42,11 +42,37 @@
     </div>
 </div>
 
+<div class="d-flex gap-2 mb-3">
+    <a class="btn btn-success shadow-sm btn-sm" href="{{ route('pengeluaran.exportExcel', request()->query()) }}">
+        <i class="ti ti-file-spreadsheet me-1"></i>Export ke Excel
+    </a>
+    <a class="btn btn-danger shadow-sm btn-sm" href="{{ route('pengeluaran.exportPdf', request()->query()) }}">
+        <i class="ti ti-file-type-pdf me-1"></i>Export ke PDF
+    </a>
+</div>
+
 <div class="row g-3 mb-4">
     <div class="col-md-4">
         <div class="card p-3 bg-danger bg-opacity-10 border border-danger border-opacity-25 rounded-2 h-100">
             <small class="text-danger fw-medium d-block mb-1">Total Pengeluaran (hasil filter)</small>
             <h4 class="mb-0 fw-bold text-dark">Rp {{ number_format($total, 0, ',', '.') }}</h4>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card p-3 rounded-2 h-100">
+            <small class="fw-medium d-block mb-2 text-secondary">Rekap per Kategori</small>
+            @if($perKategori->isEmpty())
+                <span class="text-secondary small">Tidak ada data.</span>
+            @else
+                <div class="d-flex flex-wrap gap-3">
+                    @foreach($perKategori as $kategori => $jumlah)
+                        <div>
+                            <div class="small text-secondary">{{ $kategori }}</div>
+                            <div class="fw-semibold">Rp {{ number_format($jumlah, 0, ',', '.') }}</div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
         </div>
     </div>
 </div>

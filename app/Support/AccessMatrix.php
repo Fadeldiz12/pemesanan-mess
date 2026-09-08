@@ -56,7 +56,7 @@ class AccessMatrix
             // defaults() supaya cuma Super Admin (bypass total di
             // AccessMatrix::can()) yang punya akses by default; role lain
             // bisa diberi akses belakangan lewat halaman Management Akses.
-            'pengeluaran' => ['label' => 'Pengeluaran Mess/Bungalow', 'group' => 'Pengeluaran', 'actions' => ['read', 'create', 'update', 'delete']],
+            'pengeluaran' => ['label' => 'Pengeluaran Mess/Bungalow', 'group' => 'Pengeluaran', 'actions' => ['read', 'create', 'update', 'delete', 'export']],
             'vehicle-types' => ['group' => 'Master Data', 'label' => 'Jenis Kendaraan', 'actions' => ['read', 'create', 'update', 'delete']],
             'vehicles' => ['label' => 'Kendaraan', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
             'drivers' => ['label' => 'Supir', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],

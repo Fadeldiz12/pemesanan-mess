@@ -108,6 +108,8 @@ Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->gr
 
     // Pengeluaran Mess/Bungalow (Superadmin)
     Route::resource('pengeluaran', ExpenseController::class)->except(['show']);
+    Route::get('/pengeluaran-export/excel', [ExpenseController::class, 'exportExcel'])->name('pengeluaran.exportExcel');
+    Route::get('/pengeluaran-export/pdf', [ExpenseController::class, 'exportPdf'])->name('pengeluaran.exportPdf');
 
     // Hapus foto galeri (dipakai bersama Mess/Kamar/Bungalow)
     Route::delete('/unit-photos/{photo}', [UnitPhotoController::class, 'destroy'])->name('unit-photos.destroy');
