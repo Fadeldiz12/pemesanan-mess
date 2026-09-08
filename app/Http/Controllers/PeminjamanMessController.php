@@ -11,6 +11,7 @@ use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -419,6 +420,74 @@ class PeminjamanMessController extends Controller
         ActivityLog::record($user, 'cancel', 'peminjaman_mess', (string) $peminjaman->id, "Membatalkan pengajuan {$peminjaman->peminjaman_code}");
 
         return response()->json(['message' => 'Pengajuan berhasil dibatalkan.']);
+    }
+
+    /**
+     * Pembatalan booking dari sisi Admin (panduan pengembangan fitur poin
+     * 4) - terpisah dari approve/reject di atas & dari destroy() (yang itu
+     * pembatalan oleh PEMOHON sebelum disetujui). Sengaja pakai gate
+     * 'cancel' sendiri (bukan numpang 'approve') supaya wewenangnya bisa
+     * diatur terpisah lewat Management Akses - default cuma role 'Admin'
+     * yang dikasih (lihat AccessMatrix::defaults()), bukan Staff/Kasubbag/
+     * Kabag Approval walau mereka juga punya 'approve'.
+     */
+    public function cancel(Request $request, MessBorrowing $peminjaman): JsonResponse
+    {
+        $this->authorizeAction($request, 'cancel');
+
+        if (in_array($peminjaman->peminjaman_status, ['Selesai', 'Ditolak', 'Dibatalkan'], true)) {
+            return response()->json(['message' => 'Peminjaman dengan status ini tidak dapat dibatalkan.'], 422);
+        }
+
+        $validated = $request->validate([
+            'alasan' => ['required', 'string', 'max:500'],
+        ]);
+
+        $user = $request->user();
+
+        $peminjaman->update([
+            'peminjaman_status' => 'Dibatalkan',
+            'approval_status' => 'Dibatalkan',
+            'cancelled_by' => $user->id,
+            'cancelled_at' => now(),
+            'cancellation_reason' => $validated['alasan'],
+        ]);
+
+        ActivityLog::record($user, 'cancel_by_admin', 'peminjaman_mess', (string) $peminjaman->id, "Membatalkan peminjaman {$peminjaman->peminjaman_code}: {$validated['alasan']}");
+
+        return response()->json($peminjaman->fresh());
+    }
+
+    /**
+     * Upload surat pembatalan belakangan - sifatnya opsional saat
+     * pembatalan terjadi (cancel() di atas tidak mensyaratkan surat ada
+     * dulu), makanya endpoint ini terpisah & bisa dipanggil kapan saja
+     * setelah status jadi 'Dibatalkan' untuk menghilangkan warning di
+     * halaman detail/listing.
+     */
+    public function uploadCancellationLetter(Request $request, MessBorrowing $peminjaman): JsonResponse
+    {
+        $this->authorizeAction($request, 'cancel');
+
+        if ($peminjaman->peminjaman_status !== 'Dibatalkan') {
+            return response()->json(['message' => 'Surat pembatalan hanya berlaku untuk peminjaman yang sudah dibatalkan.'], 422);
+        }
+
+        $validated = $request->validate([
+            'surat_pembatalan' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:4096'],
+        ]);
+
+        if ($peminjaman->cancellation_letter) {
+            Storage::disk('public')->delete($peminjaman->cancellation_letter);
+        }
+
+        $peminjaman->update([
+            'cancellation_letter' => $request->file('surat_pembatalan')->store('surat-pembatalan', 'public'),
+        ]);
+
+        ActivityLog::record($request->user(), 'upload_cancellation_letter', 'peminjaman_mess', (string) $peminjaman->id, "Mengupload surat pembatalan {$peminjaman->peminjaman_code}");
+
+        return response()->json($peminjaman->fresh());
     }
 
     /**

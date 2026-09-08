@@ -63,7 +63,7 @@ class RolePermissionSeeder extends Seeder
             'Admin' => [
                 'mess' => ['read', 'create', 'update', 'delete'],
                 'bungalow' => ['read', 'create', 'update', 'delete'],
-                'peminjaman-mess' => ['read', 'approve', 'update', 'export'],
+                'peminjaman-mess' => ['read', 'approve', 'update', 'export', 'cancel'],
                 'users' => ['read', 'create', 'update', 'delete'],
                 'role-access' => ['read', 'update'],
                 'jabatan' => ['read', 'create', 'update', 'delete'],

@@ -13,16 +13,17 @@
         'Disetujui' => 4,
     ];
 
-    $isFinal = in_array($peminjaman->peminjaman_status, ['Disetujui', 'Ditolak', 'Perlu Reschedule', 'Selesai']);
+    $isFinal = in_array($peminjaman->peminjaman_status, ['Disetujui', 'Ditolak', 'Perlu Reschedule', 'Selesai', 'Dibatalkan']);
     $currentStageIndex = $statusToStage[$peminjaman->approval_status] ?? 0;
 
     $roleSaya = auth()->user()->role ?? null;
     $isAdmin = in_array($roleSaya, ['Admin', 'Super Admin']);
+    $canCancel = \App\Support\AccessMatrix::can('peminjaman-mess', 'cancel');
 
-    // Panel Admin (bentrok, reschedule, ubah waktu) gak relevan lagi begitu
-    // peminjaman final ditolak/selesai - gak ada lagi yang bisa dibentrokkan
-    // atau dijadwal ulang.
-    $adminPanelRelevant = !in_array($peminjaman->peminjaman_status, ['Ditolak', 'Selesai'], true);
+    // Panel Admin (bentrok, reschedule, ubah waktu, batalkan) gak relevan
+    // lagi begitu peminjaman final ditolak/selesai/dibatalkan - gak ada
+    // lagi yang bisa dibentrokkan, dijadwal ulang, atau dibatalkan lagi.
+    $adminPanelRelevant = !in_array($peminjaman->peminjaman_status, ['Ditolak', 'Selesai', 'Dibatalkan'], true);
 
     // Validasi hak akses aksi approval
     $canAct = false;
@@ -52,8 +53,10 @@
                             <i class="ti ti-briefcase me-1"></i>{{ $peminjaman->peminjam_role }}
                         </p>
                     </div>
-                    <div>
-                        @if($peminjaman->peminjaman_status === 'Ditolak')
+                    <div class="text-end">
+                        @if($peminjaman->peminjaman_status === 'Dibatalkan')
+                            <span class="badge bg-dark px-3 py-2 fs-6 shadow-sm d-block mb-1"><i class="ti ti-ban me-1"></i>Dibatalkan</span>
+                        @elseif($peminjaman->peminjaman_status === 'Ditolak')
                             <span class="badge bg-danger px-3 py-2 fs-6 shadow-sm">Ditolak</span>
                         @elseif($peminjaman->peminjaman_status === 'Perlu Reschedule')
                             <span class="badge bg-warning text-dark px-3 py-2 fs-6 shadow-sm">Perlu Reschedule</span>
@@ -64,8 +67,21 @@
                         @else
                             <span class="badge bg-warning text-dark px-3 py-2 fs-6 shadow-sm"><i class="ti ti-clock me-1"></i>{{ $peminjaman->approval_status }}</span>
                         @endif
+
+                        @if($peminjaman->needsCancellationLetter())
+                            <span class="badge bg-warning text-dark px-3 py-2 fs-6 shadow-sm d-block"><i class="ti ti-alert-triangle me-1"></i>Surat pembatalan belum diupload</span>
+                        @endif
                     </div>
                 </div>
+
+                @if($peminjaman->peminjaman_status === 'Dibatalkan')
+                <div class="alert alert-dark border-0 mb-4">
+                    <div class="fw-semibold mb-1"><i class="ti ti-ban me-1"></i>Peminjaman ini dibatalkan{{ $peminjaman->canceller ? ' oleh ' . $peminjaman->canceller->name : '' }}{{ $peminjaman->cancelled_at ? ' pada ' . $peminjaman->cancelled_at->format('d F Y, H:i') : '' }}.</div>
+                    @if($peminjaman->cancellation_reason)
+                        <div class="small">Alasan: {{ $peminjaman->cancellation_reason }}</div>
+                    @endif
+                </div>
+                @endif
 
                 {{-- Stepper approval berjenjang --}}
                 @unless($isFinal && $peminjaman->peminjaman_status !== 'Disetujui' && $peminjaman->peminjaman_status !== 'Selesai')
@@ -300,6 +316,47 @@
                         </div>
                     </form>
                 </div>
+
+                @if($canCancel)
+                    <hr class="my-1">
+                    <button type="button" class="btn btn-outline-dark w-100 py-2 text-start" data-bs-toggle="collapse" data-bs-target="#formBatalkan">
+                        <i class="ti ti-ban me-2"></i>Batalkan Peminjaman
+                    </button>
+                    <div class="collapse" id="formBatalkan">
+                        <form class="ajax-form mt-2" action="{{ route('peminjaman.cancel', $peminjaman->id) }}" method="POST">
+                            @csrf
+                            <div class="bg-light p-3 rounded border border-dark">
+                                <label class="form-label small fw-semibold">Alasan Pembatalan</label>
+                                <textarea name="alasan" class="form-control form-control-sm mb-2" rows="3" required placeholder="Wajib diisi..."></textarea>
+                                <div class="form-text small mb-2">Surat pembatalan boleh menyusul - bisa diupload belakangan lewat panel di bawah setelah dibatalkan.</div>
+                                <button type="submit" class="btn btn-dark btn-sm w-100 btn-save">Batalkan Peminjaman Ini</button>
+                            </div>
+                        </form>
+                    </div>
+                @endif
+            </div>
+        </div>
+        @endif
+
+        {{-- Upload Surat Pembatalan (menyusul, opsional saat pembatalan terjadi) --}}
+        @if($canCancel && $peminjaman->peminjaman_status === 'Dibatalkan')
+        <div class="card border-0 shadow-sm mb-4 border-top border-4 {{ $peminjaman->needsCancellationLetter() ? 'border-warning' : 'border-success' }}">
+            <div class="card-header bg-white py-3">
+                <h5 class="fs-6 mb-0 fw-bold"><i class="ti ti-file-text me-2"></i>Surat Pembatalan</h5>
+            </div>
+            <div class="card-body">
+                @if($peminjaman->cancellation_letter)
+                    <div class="alert alert-success py-2 mb-3"><i class="ti ti-circle-check me-1"></i>Surat pembatalan sudah diupload.</div>
+                    <a href="{{ asset('storage/' . $peminjaman->cancellation_letter) }}" target="_blank" class="btn btn-light border btn-sm mb-3"><i class="ti ti-eye me-1"></i>Lihat Surat</a>
+                @else
+                    <div class="alert alert-warning py-2 mb-3"><i class="ti ti-alert-triangle me-1"></i>Surat pembatalan belum diupload.</div>
+                @endif
+                <form class="ajax-form" action="{{ route('peminjaman.cancellation-letter', $peminjaman->id) }}" method="POST" enctype="multipart/form-data">
+                    @csrf
+                    <label class="form-label small fw-semibold">{{ $peminjaman->cancellation_letter ? 'Ganti Surat' : 'Upload Surat' }} (PDF/JPG/PNG)</label>
+                    <input type="file" name="surat_pembatalan" class="form-control form-control-sm mb-2" accept=".pdf,.jpg,.jpeg,.png" required>
+                    <button type="submit" class="btn btn-primary btn-sm w-100 btn-save"><i class="ti ti-upload me-1"></i>Upload Surat Pembatalan</button>
+                </form>
             </div>
         </div>
         @endif

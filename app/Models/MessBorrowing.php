@@ -59,6 +59,7 @@ class MessBorrowing extends Model
         'kasubbag_approved_at' => 'datetime',
         'kabag_approved_at' => 'datetime',
         'admin_approved_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -239,6 +240,21 @@ class MessBorrowing extends Model
     public function rejecter(): BelongsTo
     {
         return $this->belongsTo(User::class, 'rejected_by');
+    }
+
+    public function canceller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    /**
+     * Surat pembatalan opsional saat pembatalan terjadi (panduan
+     * pengembangan fitur poin 4) - dipakai buat nampilin warning di
+     * halaman detail/listing selama surat belum diupload belakangan.
+     */
+    public function needsCancellationLetter(): bool
+    {
+        return $this->peminjaman_status === 'Dibatalkan' && blank($this->cancellation_letter);
     }
 
     public function staffApprover(): BelongsTo

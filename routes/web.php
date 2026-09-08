@@ -55,6 +55,10 @@ Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->gr
     Route::get('/peminjaman-mess/{peminjaman}', [PeminjamanMessController::class, 'show'])->name('peminjaman.show');
     Route::delete('/peminjaman-mess/{peminjaman}', [PeminjamanMessController::class, 'destroy'])->name('peminjaman.destroy');
 
+    // Pembatalan Booking oleh Admin (terpisah dari approve/reject & destroy di atas)
+    Route::post('/peminjaman-mess/{peminjaman}/cancel', [PeminjamanMessController::class, 'cancel'])->name('peminjaman.cancel');
+    Route::post('/peminjaman-mess/{peminjaman}/cancellation-letter', [PeminjamanMessController::class, 'uploadCancellationLetter'])->name('peminjaman.cancellation-letter');
+
     // Approval Berjenjang (PeminjamanMessController)
     Route::post('/peminjaman-mess/{peminjaman}/approve', [PeminjamanMessController::class, 'approve'])->name('peminjaman.approve');
     Route::post('/peminjaman-mess/{peminjaman}/reject', [PeminjamanMessController::class, 'reject'])->name('peminjaman.reject');
