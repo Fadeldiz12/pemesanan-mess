@@ -32,11 +32,19 @@ class MessBorrowing extends Model
      * ruangan level apa" (README bagian 5) - dua hal yang beda meski
      * sama-sama "hirarki jabatan".
      *
-     * Nilai minimum_jabatan di Kamar/Bungalow cuma 3: Staff/Kasubag/Kabag
-     * (persis istilah di README), BUKAN 6 nama role sistem. 'Admin' bukan
-     * pilihan minimum_jabatan (gak ada ruangan yang "khusus Admin"), tapi
-     * Admin/Super Admin tetap bisa pesan SEMUA ruangan karena tier mereka
-     * disamakan ke Kabag (tier tertinggi yang ada) lewat ROLE_TO_JABATAN.
+     * Nilai minimum_jabatan di Kamar/Bungalow awalnya cuma 3: Staff/Kasubag/
+     * Kabag (persis istilah di README), BUKAN 6 nama role sistem. 'Admin'
+     * bukan pilihan minimum_jabatan (gak ada ruangan yang "khusus Admin"),
+     * tapi Admin/Super Admin tetap bisa pesan SEMUA ruangan karena tier
+     * mereka disamakan ke Kabag (tier tertinggi yang ada) lewat
+     * ROLE_TO_JABATAN.
+     *
+     * SEKARANG jabatan jadi master data dinamis (tabel `jabatans`, lihat
+     * JabatanController) yang levelnya bisa beda dari 1/2/3 di sini dan
+     * namanya bisa ditambah bebas - jadi array ini BUKAN LAGI sumber
+     * kebenaran soal level suatu jabatan (lihat jabatanLevel()), cuma
+     * dipakai sebagai fallback kalau baris jabatan-nya kebetulan tidak
+     * ketemu di database.
      */
     public const JABATAN_TIER = [
         'Staff' => 1,
@@ -150,25 +158,43 @@ class MessBorrowing extends Model
     }
 
     /**
-     * Tier jabatan efektif (1=Staff, 2=Kasubag, 3=Kabag) dari sebuah role
-     * sistem, dipakai buat cek kelayakan minimum_jabatan Kamar/Bungalow.
-     * Role apa pun yang gak eksplisit dipetakan di ROLE_TO_JABATAN (role
-     * custom, 'Supir', dll) jatuh ke tier 'Staff' (paling rendah).
+     * Level tier suatu nama jabatan, sumber utamanya tabel `jabatans` yang
+     * dinamis (Manajemen Jabatan) - BUKAN JABATAN_TIER lagi. minimum_jabatan
+     * di Kamar/Bungalow sekarang bisa diisi nama jabatan apa saja dari tabel
+     * itu (lihat KamarController::store()/BungalowController::validated()),
+     * jadi kalau tetap pakai JABATAN_TIER doang, jabatan baru di luar
+     * Staff/Kasubag/Kabag bakal ke-fallback ke tier Staff (paling rendah) -
+     * artinya unit yang minimum_jabatan-nya sengaja dibuat tinggi malah bisa
+     * dipesan siapa saja. JABATAN_TIER cuma dipakai sebagai fallback kalau
+     * baris jabatan-nya kebetulan tidak ketemu di database.
+     */
+    public static function jabatanLevel(string $jabatanNama): int
+    {
+        return Jabatan::where('nama', $jabatanNama)->value('level')
+            ?? self::JABATAN_TIER[$jabatanNama]
+            ?? self::JABATAN_TIER['Staff'];
+    }
+
+    /**
+     * Tier jabatan efektif dari sebuah role sistem, dipakai buat cek
+     * kelayakan minimum_jabatan Kamar/Bungalow. Role apa pun yang gak
+     * eksplisit dipetakan di ROLE_TO_JABATAN (role custom, 'Supir', dll)
+     * jatuh ke tier 'Staff' (paling rendah).
      */
     public static function eligibleJabatanTier(string $role): int
     {
         $jabatan = self::ROLE_TO_JABATAN[$role] ?? 'Staff';
 
-        return self::JABATAN_TIER[$jabatan] ?? self::JABATAN_TIER['Staff'];
+        return self::jabatanLevel($jabatan);
     }
 
     /**
      * Prioritas saat bentrok jadwal (README bagian 2 langkah 4) - pakai
-     * JABATAN_TIER (Staff/Kasubag/Kabag), BUKAN rankLevel()/RANK_ORDER.
-     * RANK_ORDER itu soal urutan approval (6 level, granular per role
-     * approval), sedangkan prioritas bentrok itu soal jabatan asli pemohon
-     * (cuma 3 tingkat) - dua konsep beda yang sebelumnya kepakai keliru
-     * di sini (pakai RANK_ORDER).
+     * eligibleJabatanTier() (jabatan efektif pemohon, dari tabel jabatans),
+     * BUKAN rankLevel()/RANK_ORDER. RANK_ORDER itu soal urutan approval (6
+     * level, granular per role approval), sedangkan prioritas bentrok itu
+     * soal jabatan asli pemohon - dua konsep beda yang sebelumnya kepakai
+     * keliru di sini (pakai RANK_ORDER).
      */
     public function outranks(self $other): bool
     {
@@ -191,8 +217,16 @@ class MessBorrowing extends Model
 
         $query = User::where('role', $targetRole);
 
-        if ($stage === 'kasubbag') {
-            $query->where('sub_department', $this->peminjam_sub_department);
+        // 'sub_department' cuma string bebas di tabel users (bukan FK ke
+        // sub_departments), dan nama sub-bagian seperti "Umum" dipakai
+        // ulang di banyak department (lihat seeder sub_departemans) - jadi
+        // filter sub_department SENDIRIAN bisa nyamber Kasubbag dari
+        // department lain yang kebetulan sub_department-nya sama namanya.
+        // Wajib disandingkan dengan department, konsisten dengan
+        // ApprovalController::authorizeLevel() yang mensyaratkan keduanya.
+        if (in_array($stage, ['staff', 'kasubbag'], true)) {
+            $query->where('department', $this->peminjam_department)
+                ->where('sub_department', $this->peminjam_sub_department);
         } elseif ($stage === 'kabag') {
             $query->where('department', $this->peminjam_department);
         }

@@ -4,8 +4,7 @@
 @section('header_title', 'Dashboard Utama')
 
 @php
-    $jabatan = auth()->user()->jabatan ?? null;
-    $isAdmin = $jabatan === 'Admin';
+    $isAdmin = in_array(auth()->user()->role ?? null, ['Admin', 'Super Admin'], true);
 
     $cards = [
         ['label' => 'Total Unit Tersedia', 'value' => $totalUnit ?? 12, 'icon' => 'ti ti-building', 'color' => 'info'],

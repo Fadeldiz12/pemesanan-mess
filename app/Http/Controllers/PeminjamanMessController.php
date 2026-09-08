@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\Bungalow;
+use App\Models\Jabatan;
 use App\Models\Kamar;
 use App\Models\Mess;
 use App\Models\MessBorrowing;
@@ -158,7 +159,6 @@ class PeminjamanMessController extends Controller
 
         $peminjaman = DB::transaction(function () use ($validated, $bookableClass, $unit, $user) {
             return MessBorrowing::create([
-                'peminjaman_code' => 'PMJ-' . strtoupper(Str::random(10)),
                 'bookable_type' => $bookableClass,
                 'bookable_id' => $unit->id,
                 'waktu_mulai' => $validated['waktu_mulai'],
@@ -398,7 +398,7 @@ class PeminjamanMessController extends Controller
     {
         $user = $request->user();
 
-        if ($peminjaman->created_by !== $user->id && $user->role !== 'Admin') {
+        if ($peminjaman->created_by !== $user->id && !in_array($user->role, ['Admin', 'Super Admin'], true)) {
             abort(403, 'Anda tidak berhak membatalkan peminjaman ini.');
         }
 
@@ -485,7 +485,7 @@ class PeminjamanMessController extends Controller
 
     private function assertJabatanEligible(Kamar|Bungalow $unit, string $peminjamRole): void
     {
-        $minLevel = MessBorrowing::JABATAN_TIER[$unit->minimum_jabatan] ?? MessBorrowing::JABATAN_TIER['Staff'];
+        $minLevel = MessBorrowing::jabatanLevel($unit->minimum_jabatan);
         $userLevel = MessBorrowing::eligibleJabatanTier($peminjamRole);
 
         if ($userLevel < $minLevel) {
@@ -496,17 +496,20 @@ class PeminjamanMessController extends Controller
     }
 
     /**
-     * Daftar minimum_jabatan (Staff/Kasubag/Kabag) yang boleh dilihat/
-     * dipesan oleh $role tertentu (jabatan efektifnya sendiri + semua yang
-     * levelnya di bawah).
+     * Daftar minimum_jabatan (nama jabatan dari tabel jabatans) yang boleh
+     * dilihat/dipesan oleh $role tertentu (jabatan efektifnya sendiri +
+     * semua yang levelnya di bawah). Dihitung dari tabel jabatans yang
+     * dinamis, bukan MessBorrowing::JABATAN_TIER, supaya jabatan baru di
+     * luar Staff/Kasubag/Kabag ikut terhitung benar (lihat catatan di
+     * MessBorrowing::jabatanLevel()).
      */
     private function eligibleJabatan(string $role): array
     {
         $userLevel = MessBorrowing::eligibleJabatanTier($role);
 
-        return collect(MessBorrowing::JABATAN_TIER)
-            ->filter(fn ($level) => $level <= $userLevel)
-            ->keys()
+        return Jabatan::where('status', 'Aktif')
+            ->where('level', '<=', $userLevel)
+            ->pluck('nama')
             ->all();
     }
 
@@ -541,7 +544,7 @@ class PeminjamanMessController extends Controller
 
     private function authorizeView($user, MessBorrowing $peminjaman): void
     {
-        if ($peminjaman->created_by === $user->id || $user->role === 'Admin') {
+        if ($peminjaman->created_by === $user->id || in_array($user->role, ['Admin', 'Super Admin'], true)) {
             return;
         }
 

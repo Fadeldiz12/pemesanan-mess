@@ -5,14 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Bungalow;
 use App\Models\Kamar;
 use App\Models\MessBorrowing;
+use App\Support\AccessMatrix;
 use Illuminate\Http\Request;
 
 class MessReportController extends Controller
 {
     public function index(Request $request)
     {
-        // Pastikan Anda menyesuaikan permission key di sini dengan yang ada di AccessMatrix
-        // $this->authorizeAction($request, 'read');
+        $this->authorizeAction($request, 'read');
 
         $query = $this->filtered($request);
         $borrowings = (clone $query)->latest()->paginate(20);
@@ -85,5 +85,14 @@ class MessReportController extends Controller
         }
 
         return $query->whereRaw('1 = 0');
+    }
+
+    private function authorizeAction(Request $request, string $action): void
+    {
+        abort_unless(
+            AccessMatrix::can('reports', $action, $request->user()),
+            403,
+            "Anda tidak memiliki akses '{$action}' pada Laporan."
+        );
     }
 }
