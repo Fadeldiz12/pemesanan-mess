@@ -51,6 +51,12 @@ class AccessMatrix
             'mess' => ['label' => 'Mess & Kamar', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
             'bungalow' => ['label' => 'Bungalow', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
             'peminjaman-mess' => ['label' => 'Peminjaman Mess/Bungalow', 'group' => 'Peminjaman', 'actions' => ['read', 'create', 'approve', 'update', 'export']],
+            // ⬇️ Modul Pengeluaran Mess/Bungalow (Superadmin) - lihat
+            // panduan pengembangan fitur. Sengaja TIDAK dikasih baris di
+            // defaults() supaya cuma Super Admin (bypass total di
+            // AccessMatrix::can()) yang punya akses by default; role lain
+            // bisa diberi akses belakangan lewat halaman Management Akses.
+            'pengeluaran' => ['label' => 'Pengeluaran Mess/Bungalow', 'group' => 'Pengeluaran', 'actions' => ['read', 'create', 'update', 'delete']],
             'vehicle-types' => ['group' => 'Master Data', 'label' => 'Jenis Kendaraan', 'actions' => ['read', 'create', 'update', 'delete']],
             'vehicles' => ['label' => 'Kendaraan', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],
             'drivers' => ['label' => 'Supir', 'group' => 'Master Data', 'actions' => ['read', 'create', 'update', 'delete']],

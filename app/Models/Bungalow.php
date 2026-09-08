@@ -42,6 +42,11 @@ class Bungalow extends Model
         return $this->morphMany(UnitPrice::class, 'bookable');
     }
 
+    public function expenses(): MorphMany
+    {
+        return $this->morphMany(Expense::class, 'bookable');
+    }
+
     public function priceFor(Jabatan $jabatan): int
     {
         return $this->prices->firstWhere('jabatan_id', $jabatan->id)?->harga ?? 0;

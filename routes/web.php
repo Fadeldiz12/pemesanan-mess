@@ -3,6 +3,7 @@
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\BungalowController;
 use App\Http\Controllers\KamarController;
 use App\Http\Controllers\MessController;
@@ -79,7 +80,10 @@ Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->gr
     Route::resource('messes', MessController::class);
     Route::resource('messes.kamars', KamarController::class)->shallow();
     Route::resource('bungalows', BungalowController::class);
-    
+
+    // Pengeluaran Mess/Bungalow (Superadmin)
+    Route::resource('pengeluaran', ExpenseController::class)->except(['show']);
+
     // Master Data Bagian & Subbagian
     Route::resource('departments', DepartmentController::class);
     Route::resource('sub-departments', SubDepartmentController::class);

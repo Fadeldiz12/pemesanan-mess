@@ -24,6 +24,11 @@
 
         ['type' => 'link', 'label' => 'Approval', 'icon' => 'ti ti-checkup-list', 'route' => 'approval.index', 'can' => 'approval'],
 
+        ['type' => 'group', 'label' => 'Pengeluaran', 'icon' => 'ti ti-receipt', 'key' => 'pengeluaran', 'children' => [
+            ['label' => 'Catat Pengeluaran', 'route' => 'pengeluaran.create', 'can' => 'pengeluaran', 'action' => 'create'],
+            ['label' => 'Rekap Pengeluaran', 'route' => 'pengeluaran.index', 'can' => 'pengeluaran'],
+        ]],
+
         ['type' => 'group', 'label' => 'Laporan', 'icon' => 'ti ti-file-spreadsheet', 'key' => 'laporan', 'children' => [
             ['label' => 'Laporan Peminjaman', 'route' => 'mess-reports.index', 'can' => 'reports'],
             ['label' => 'Log Aktivitas', 'route' => 'logs.index', 'can' => 'logs'],

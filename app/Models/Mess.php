@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Mess extends Model
@@ -24,5 +25,10 @@ class Mess extends Model
     public function kamars(): HasMany
     {
         return $this->hasMany(Kamar::class);
+    }
+
+    public function expenses(): MorphMany
+    {
+        return $this->morphMany(Expense::class, 'bookable');
     }
 }
