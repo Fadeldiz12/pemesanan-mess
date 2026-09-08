@@ -19,6 +19,7 @@
     $roleSaya = auth()->user()->role ?? null;
     $isAdmin = in_array($roleSaya, ['Admin', 'Super Admin']);
     $canCancel = \App\Support\AccessMatrix::can('peminjaman-mess', 'cancel');
+    $canManageRatingLink = \App\Support\AccessMatrix::can('peminjaman-mess', 'update');
 
     // Panel Admin (bentrok, reschedule, ubah waktu, batalkan) gak relevan
     // lagi begitu peminjaman final ditolak/selesai/dibatalkan - gak ada
@@ -357,6 +358,43 @@
                     <input type="file" name="surat_pembatalan" class="form-control form-control-sm mb-2" accept=".pdf,.jpg,.jpeg,.png" required>
                     <button type="submit" class="btn btn-primary btn-sm w-100 btn-save"><i class="ti ti-upload me-1"></i>Upload Surat Pembatalan</button>
                 </form>
+            </div>
+        </div>
+        @endif
+
+        {{-- Link Rating Sekali Pakai (muncul setelah peminjaman Selesai) --}}
+        @if($canManageRatingLink && $peminjaman->peminjaman_status === 'Selesai')
+        <div class="card border-0 shadow-sm mb-4 border-top border-4 border-warning">
+            <div class="card-header bg-white py-3">
+                <h5 class="fs-6 mb-0 fw-bold"><i class="ti ti-star me-2 text-warning"></i>Link Rating Tamu</h5>
+            </div>
+            <div class="card-body">
+                @if($peminjaman->rating)
+                    <div class="alert alert-success py-2 mb-0">
+                        <i class="ti ti-circle-check me-1"></i>Sudah diberi rating {{ $peminjaman->rating->rating }}/5
+                        @if($peminjaman->rating->review)
+                            <div class="small mt-1 fst-italic">"{{ $peminjaman->rating->review }}"</div>
+                        @endif
+                    </div>
+                @else
+                    <p class="text-secondary small mb-3">Generate link sekali pakai lalu kirim sendiri ke tamu lewat WA/Email. Link otomatis tidak berlaku lagi setelah tamu berhasil mengirim rating.</p>
+
+                    @if($peminjaman->rating_token)
+                        <div class="input-group input-group-sm mb-2">
+                            <input type="text" class="form-control" id="ratingLinkInput" value="{{ route('rating.public.show', $peminjaman->rating_token) }}" readonly>
+                            <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('ratingLinkInput').value); this.innerHTML='<i class=\'ti ti-check\'></i>';">
+                                <i class="ti ti-copy"></i>
+                            </button>
+                        </div>
+                    @endif
+
+                    <form class="ajax-form" action="{{ route('peminjaman.rating-link', $peminjaman->id) }}" method="POST">
+                        @csrf
+                        <button type="submit" class="btn btn-warning btn-sm w-100 btn-save text-dark fw-semibold">
+                            <i class="ti ti-link me-1"></i>{{ $peminjaman->rating_token ? 'Generate Ulang Link' : 'Generate Link Rating' }}
+                        </button>
+                    </form>
+                @endif
             </div>
         </div>
         @endif

@@ -257,6 +257,20 @@ class MessBorrowing extends Model
         return $this->peminjaman_status === 'Dibatalkan' && blank($this->cancellation_letter);
     }
 
+    /**
+     * Link rating sekali pakai (panduan pengembangan fitur poin 5) - cuma
+     * relevan buat peminjaman yang sudah selesai & belum pernah dirating.
+     * "Sudah dirating" sengaja dicek lewat rating()->exists(), BUKAN kolom
+     * "token sudah dipakai" terpisah - begitu rating tersimpan, token yang
+     * sama otomatis jadi tidak valid lagi tanpa perlu bookkeeping tambahan
+     * (lihat aturan kunci di panduan: link "terpakai" setelah submit
+     * berhasil, bukan sekadar setelah dibuka).
+     */
+    public function canGenerateRatingLink(): bool
+    {
+        return $this->peminjaman_status === 'Selesai' && ! $this->rating()->exists();
+    }
+
     public function staffApprover(): BelongsTo
     {
         return $this->belongsTo(User::class, 'staff_approved_by');

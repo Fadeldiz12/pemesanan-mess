@@ -491,6 +491,36 @@ class PeminjamanMessController extends Controller
     }
 
     /**
+     * Generate link rating sekali pakai (panduan pengembangan fitur poin
+     * 5) - admin generate manual per peminjaman yang sudah selesai, lalu
+     * dikirim sendiri ke tamu lewat WA/email (sistem tidak mengirim
+     * otomatis). Reuse gate 'update' (bukan bikin action baru) karena
+     * sama-sama wewenang admin final, konsisten dengan updateWaktu().
+     */
+    public function generateRatingLink(Request $request, MessBorrowing $peminjaman): JsonResponse
+    {
+        $this->authorizeAction($request, 'update');
+
+        if (! $peminjaman->canGenerateRatingLink()) {
+            $message = $peminjaman->peminjaman_status !== 'Selesai'
+                ? 'Link rating hanya bisa dibuat untuk peminjaman yang sudah selesai.'
+                : 'Peminjaman ini sudah pernah diberi rating.';
+
+            return response()->json(['message' => $message], 422);
+        }
+
+        do {
+            $token = Str::random(48);
+        } while (MessBorrowing::where('rating_token', $token)->exists());
+
+        $peminjaman->update(['rating_token' => $token]);
+
+        ActivityLog::record($request->user(), 'generate_rating_link', 'peminjaman_mess', (string) $peminjaman->id, "Membuat link rating untuk {$peminjaman->peminjaman_code}");
+
+        return response()->json($peminjaman->fresh());
+    }
+
+    /**
      * Bagian 7: Export data ke Excel.
      */
     public function exportExcel(Request $request)

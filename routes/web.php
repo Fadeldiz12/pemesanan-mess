@@ -4,6 +4,7 @@ use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\RatingLinkController;
 use App\Http\Controllers\BungalowController;
 use App\Http\Controllers\KamarController;
 use App\Http\Controllers\MessController;
@@ -27,6 +28,11 @@ Route::redirect('/', '/peminjaman-mess');
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login')->middleware('guest');
 Route::post('/login', [AuthController::class, 'login'])->name('login.process')->middleware('guest');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
+
+// Halaman Rating Publik via Link Sekali Pakai - TANPA login, sengaja di
+// luar grup middleware 'auth' di bawah (tamu tidak punya akun sistem).
+Route::get('/rating/{token}', [RatingLinkController::class, 'show'])->name('rating.public.show');
+Route::post('/rating/{token}', [RatingLinkController::class, 'store'])->name('rating.public.store');
 
 // UserIsActive: paksa logout kalau akun dinonaktifkan Super Admin di tengah
 // sesi yang masih berjalan. ForceChangePassword: paksa ganti password dulu
@@ -58,6 +64,9 @@ Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->gr
     // Pembatalan Booking oleh Admin (terpisah dari approve/reject & destroy di atas)
     Route::post('/peminjaman-mess/{peminjaman}/cancel', [PeminjamanMessController::class, 'cancel'])->name('peminjaman.cancel');
     Route::post('/peminjaman-mess/{peminjaman}/cancellation-letter', [PeminjamanMessController::class, 'uploadCancellationLetter'])->name('peminjaman.cancellation-letter');
+
+    // Generate Link Rating Sekali Pakai (Admin)
+    Route::post('/peminjaman-mess/{peminjaman}/rating-link', [PeminjamanMessController::class, 'generateRatingLink'])->name('peminjaman.rating-link');
 
     // Approval Berjenjang (PeminjamanMessController)
     Route::post('/peminjaman-mess/{peminjaman}/approve', [PeminjamanMessController::class, 'approve'])->name('peminjaman.approve');
