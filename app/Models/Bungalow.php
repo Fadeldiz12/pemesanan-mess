@@ -18,6 +18,7 @@ class Bungalow extends Model
         'alamat',
         'deskripsi',
         'foto',
+        'fasilitas',
         'kapasitas',
         'status',
         'minimum_jabatan',
@@ -25,6 +26,7 @@ class Bungalow extends Model
 
     protected $casts = [
         'kapasitas' => 'integer',
+        'fasilitas' => 'array',
     ];
 
     public function peminjaman(): MorphMany
@@ -45,6 +47,11 @@ class Bungalow extends Model
     public function expenses(): MorphMany
     {
         return $this->morphMany(Expense::class, 'bookable');
+    }
+
+    public function photos(): MorphMany
+    {
+        return $this->morphMany(UnitPhoto::class, 'bookable')->orderBy('urutan');
     }
 
     public function priceFor(Jabatan $jabatan): int

@@ -32,6 +32,12 @@
                     <textarea id="deskripsi" name="deskripsi" rows="3" class="form-control" placeholder="Deskripsi singkat mengenai unit bungalow ini...">{{ old('deskripsi', $bungalow->deskripsi) }}</textarea>
                 </div>
 
+                <div class="mb-3">
+                    <label for="fasilitas" class="form-label">Fasilitas</label>
+                    <input type="text" id="fasilitas" name="fasilitas" class="form-control" value="{{ old('fasilitas', implode(', ', $bungalow->fasilitas ?? [])) }}" placeholder="Contoh: AC, WiFi, Dapur, Halaman">
+                    <div class="form-text">Pisahkan tiap fasilitas dengan koma.</div>
+                </div>
+
                 <div class="row g-3 mb-3">
                     <div class="col-12 col-md-4">
                         <label for="kapasitas" class="form-label">Kapasitas (Orang)</label>
@@ -69,6 +75,25 @@
                     @endif
                     <input type="file" id="foto" name="foto" class="form-control @error('foto') is-invalid @enderror" accept="image/*">
                     @error('foto')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label d-block">Galeri Foto</label>
+                    @if ($bungalow->photos->isNotEmpty())
+                        <div class="d-flex flex-wrap gap-2 mb-2">
+                            @foreach ($bungalow->photos as $photo)
+                                <div class="position-relative">
+                                    <img src="{{ asset('storage/' . $photo->path) }}" style="height:90px;width:90px;object-fit:cover;" class="rounded border">
+                                    <form action="{{ route('unit-photos.destroy', $photo) }}" method="POST" onsubmit="return confirm('Hapus foto ini?')" class="position-absolute top-0 end-0">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="btn btn-danger btn-sm p-1 lh-1" title="Hapus"><i class="ti ti-x"></i></button>
+                                    </form>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                    <input type="file" name="galeri[]" id="galeri" class="form-control" accept="image/*" multiple>
+                    <div class="form-text">Bisa pilih lebih dari satu foto sekaligus untuk ditambahkan ke galeri.</div>
                 </div>
 
                 <div class="d-flex justify-content-end gap-2 border-top pt-3">

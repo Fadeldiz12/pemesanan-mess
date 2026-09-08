@@ -46,13 +46,38 @@
         </div>
 
         <div class="mb-3">
-            <label for="foto" class="form-label">Foto</label>
+            <label for="fasilitas" class="form-label">Fasilitas</label>
+            <input type="text" name="fasilitas" id="fasilitas" class="form-control" value="{{ old('fasilitas', implode(', ', $kamar->fasilitas ?? [])) }}" placeholder="Contoh: AC, WiFi, TV, Kamar Mandi Dalam">
+            <div class="form-text">Pisahkan tiap fasilitas dengan koma.</div>
+        </div>
+
+        <div class="mb-3">
+            <label for="foto" class="form-label">Foto Utama</label>
             @if ($kamar->foto)
                 <div class="mb-2">
                     <img src="{{ asset('storage/' . $kamar->foto) }}" alt="{{ $kamar->nama_kamar }}" style="max-height:120px;">
                 </div>
             @endif
             <input type="file" name="foto" id="foto" class="form-control" accept="image/*">
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label d-block">Galeri Foto</label>
+            @if ($kamar->photos->isNotEmpty())
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    @foreach ($kamar->photos as $photo)
+                        <div class="position-relative">
+                            <img src="{{ asset('storage/' . $photo->path) }}" style="height:90px;width:90px;object-fit:cover;" class="rounded border">
+                            <form action="{{ route('unit-photos.destroy', $photo) }}" method="POST" onsubmit="return confirm('Hapus foto ini?')" class="position-absolute top-0 end-0">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="btn btn-danger btn-sm p-1 lh-1" title="Hapus"><i class="ti ti-x"></i></button>
+                            </form>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+            <input type="file" name="galeri[]" id="galeri" class="form-control" accept="image/*" multiple>
+            <div class="form-text">Bisa pilih lebih dari satu foto sekaligus untuk ditambahkan ke galeri.</div>
         </div>
 
         <div class="mb-3">

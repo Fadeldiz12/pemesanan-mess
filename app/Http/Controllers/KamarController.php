@@ -7,6 +7,7 @@ use App\Models\ActivityLog;
 use App\Models\Jabatan;
 use App\Models\Kamar;
 use App\Models\Mess;
+use App\Models\UnitPhoto;
 use App\Models\UnitPrice;
 use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
@@ -82,12 +83,17 @@ class KamarController extends Controller
             'minimum_jabatan' => ['required', 'string', Rule::exists('jabatans', 'nama')->where('status', 'Aktif')],
             'deskripsi' => ['nullable', 'string'],
             'foto' => ['nullable', 'image', 'max:2048'],
+            'fasilitas' => ['nullable', 'string'],
+            'galeri' => ['nullable', 'array'],
+            'galeri.*' => ['image', 'max:2048'],
             'harga' => ['nullable', 'array'],
             'harga.*' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $harga = $validated['harga'] ?? [];
-        unset($validated['harga']);
+        $galeri = $validated['galeri'] ?? [];
+        $validated['fasilitas'] = $this->parseFasilitas($validated['fasilitas'] ?? null);
+        unset($validated['harga'], $validated['galeri']);
 
         if ($request->hasFile('foto')) {
             $validated['foto'] = $request->file('foto')->store('kamar', 'public');
@@ -95,6 +101,7 @@ class KamarController extends Controller
 
         $kamar = $mess->kamars()->create($validated);
         $this->savePrices($kamar, $harga);
+        $this->saveGaleri($kamar, $galeri);
 
         ActivityLog::record($request->user(), 'create', 'kamar', (string) $kamar->id, "Menambahkan Kamar: {$kamar->nama_kamar} ({$mess->nama})");
 
@@ -107,7 +114,7 @@ class KamarController extends Controller
 
     public function show(Request $request, Kamar $kamar): View|JsonResponse
     {
-        $kamar->load('mess');
+        $kamar->load(['mess', 'photos']);
 
         if ($request->wantsJson()) {
             return response()->json($kamar);
@@ -120,7 +127,7 @@ class KamarController extends Controller
     {
         $this->authorizeAction($request, 'update');
 
-        $kamar->load(['mess', 'prices']);
+        $kamar->load(['mess', 'prices', 'photos']);
         $jabatans = $this->jabatansForPricing($kamar->minimum_jabatan);
 
         return view('kamars.edit', [
@@ -146,12 +153,19 @@ class KamarController extends Controller
             'minimum_jabatan' => ['sometimes', 'required', 'string', Rule::exists('jabatans', 'nama')->where('status', 'Aktif')],
             'deskripsi' => ['nullable', 'string'],
             'foto' => ['nullable', 'image', 'max:2048'],
+            'fasilitas' => ['nullable', 'string'],
+            'galeri' => ['nullable', 'array'],
+            'galeri.*' => ['image', 'max:2048'],
             'harga' => ['nullable', 'array'],
             'harga.*' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $harga = $validated['harga'] ?? null;
-        unset($validated['harga']);
+        $galeri = $validated['galeri'] ?? [];
+        if (array_key_exists('fasilitas', $validated)) {
+            $validated['fasilitas'] = $this->parseFasilitas($validated['fasilitas']);
+        }
+        unset($validated['harga'], $validated['galeri']);
 
         if ($request->hasFile('foto')) {
             if ($kamar->foto) {
@@ -161,6 +175,7 @@ class KamarController extends Controller
         }
 
         $kamar->update($validated);
+        $this->saveGaleri($kamar, $galeri);
 
         if ($harga !== null) {
             $this->savePrices($kamar, $harga);
@@ -245,5 +260,35 @@ class KamarController extends Controller
             403,
             "Anda tidak memiliki akses '{$action}' pada data Kamar."
         );
+    }
+
+    /**
+     * Sama seperti MessController::parseFasilitas()/saveGaleri() - lihat
+     * catatan di sana.
+     */
+    private function parseFasilitas(?string $raw): ?array
+    {
+        if (blank($raw)) {
+            return null;
+        }
+
+        $items = array_filter(array_map('trim', explode(',', $raw)));
+
+        return empty($items) ? null : array_values($items);
+    }
+
+    private function saveGaleri(Kamar $kamar, array $files): void
+    {
+        $urutan = $kamar->photos()->max('urutan') ?? 0;
+
+        foreach ($files as $file) {
+            $urutan++;
+            UnitPhoto::create([
+                'bookable_type' => Kamar::class,
+                'bookable_id' => $kamar->id,
+                'path' => $file->store('kamar-galeri', 'public'),
+                'urutan' => $urutan,
+            ]);
+        }
     }
 }

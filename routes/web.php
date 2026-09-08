@@ -4,7 +4,9 @@ use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\KatalogController;
 use App\Http\Controllers\RatingLinkController;
+use App\Http\Controllers\UnitPhotoController;
 use App\Http\Controllers\BungalowController;
 use App\Http\Controllers\KamarController;
 use App\Http\Controllers\MessController;
@@ -51,6 +53,12 @@ Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->gr
         return view('dashboard.index');
     })->name('dashboard');
 
+    // Katalog Unit ala Traveloka (poin 1 panduan pengembangan fitur):
+    // listing + detail unit sebelum masuk form pengajuan.
+    Route::get('/katalog', [KatalogController::class, 'index'])->name('katalog.index');
+    Route::get('/katalog/mess/{mess}', [KatalogController::class, 'showMess'])->name('katalog.mess');
+    Route::get('/katalog/bungalow/{bungalow}', [KatalogController::class, 'showBungalow'])->name('katalog.bungalow');
+
     // Katalog & Halaman Pemesanan Utama
     Route::get('/peminjaman-mess', [PeminjamanMessController::class, 'index'])->name('peminjaman-mess.index');
     Route::get('/peminjaman-mess/create', [PeminjamanMessController::class, 'create'])->name('peminjaman.create');
@@ -96,6 +104,9 @@ Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->gr
 
     // Pengeluaran Mess/Bungalow (Superadmin)
     Route::resource('pengeluaran', ExpenseController::class)->except(['show']);
+
+    // Hapus foto galeri (dipakai bersama Mess/Kamar/Bungalow)
+    Route::delete('/unit-photos/{photo}', [UnitPhotoController::class, 'destroy'])->name('unit-photos.destroy');
 
     // Master Data Bagian & Subbagian
     Route::resource('departments', DepartmentController::class);

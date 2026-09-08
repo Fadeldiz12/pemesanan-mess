@@ -101,7 +101,18 @@ class PeminjamanMessController extends Controller
             ->filter(fn ($unit) => MessBorrowing::jabatanLevel($unit->minimum_jabatan) <= $jabatan->level)
             ->map(fn ($unit) => ['unit' => $unit, 'harga' => $unit->priceFor($jabatan)]);
 
-        return view('peminjaman-mess.pilih-unit', compact('step1', 'units', 'jabatan'));
+        // Unit "ter-pilih otomatis" (poin 1 panduan pengembangan fitur) -
+        // datang dari tombol "Pesan Sekarang" di halaman Katalog. Kalau
+        // unit itu masih memenuhi syarat kapasitas/jabatan di atas,
+        // majukan ke urutan pertama supaya otomatis ke-checklist; kalau
+        // sudah tidak memenuhi syarat, tetap tampilkan daftar lengkap
+        // seperti biasa (silent fallback, bukan error).
+        $preselectUnitId = $request->integer('preselect_unit_id') ?: null;
+        if ($preselectUnitId) {
+            $units = $units->sortByDesc(fn ($row) => $row['unit']->id === $preselectUnitId)->values();
+        }
+
+        return view('peminjaman-mess.pilih-unit', compact('step1', 'units', 'jabatan', 'preselectUnitId'));
     }
 
     public function show(Request $request, MessBorrowing $peminjaman)

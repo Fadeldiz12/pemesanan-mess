@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Support\AccessMatrix;
 use App\Models\Mess;
+use App\Models\UnitPhoto;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -55,14 +56,22 @@ class MessController extends Controller
             'alamat' => ['required', 'string', 'max:255'],
             'deskripsi' => ['nullable', 'string'],
             'foto' => ['nullable', 'image', 'max:2048'],
+            'fasilitas' => ['nullable', 'string'],
+            'galeri' => ['nullable', 'array'],
+            'galeri.*' => ['image', 'max:2048'],
             'status' => ['required', Rule::in(['Aktif', 'Nonaktif'])],
         ]);
+
+        $galeri = $validated['galeri'] ?? [];
+        $validated['fasilitas'] = $this->parseFasilitas($validated['fasilitas'] ?? null);
+        unset($validated['galeri']);
 
         if ($request->hasFile('foto')) {
             $validated['foto'] = $request->file('foto')->store('mess', 'public');
         }
 
         $mess = Mess::create($validated);
+        $this->saveGaleri($mess, $galeri);
 
         ActivityLog::record($request->user(), 'create', 'mess', (string) $mess->id, "Menambahkan Mess: {$mess->nama}");
 
@@ -75,7 +84,7 @@ class MessController extends Controller
 
     public function show(Request $request, Mess $mess): View|JsonResponse
     {
-        $mess->load(['kamars' => fn ($q) => $q->orderBy('nama_kamar')]);
+        $mess->load(['kamars' => fn ($q) => $q->orderBy('nama_kamar'), 'photos']);
 
         if ($request->wantsJson()) {
             return response()->json($mess);
@@ -87,6 +96,8 @@ class MessController extends Controller
     public function edit(Request $request, Mess $mess): View
     {
         $this->authorizeAction($request, 'update');
+
+        $mess->load('photos');
 
         return view('messes.edit', compact('mess'));
     }
@@ -100,8 +111,17 @@ class MessController extends Controller
             'alamat' => ['sometimes', 'required', 'string', 'max:255'],
             'deskripsi' => ['nullable', 'string'],
             'foto' => ['nullable', 'image', 'max:2048'],
+            'fasilitas' => ['nullable', 'string'],
+            'galeri' => ['nullable', 'array'],
+            'galeri.*' => ['image', 'max:2048'],
             'status' => ['sometimes', 'required', Rule::in(['Aktif', 'Nonaktif'])],
         ]);
+
+        $galeri = $validated['galeri'] ?? [];
+        if (array_key_exists('fasilitas', $validated)) {
+            $validated['fasilitas'] = $this->parseFasilitas($validated['fasilitas']);
+        }
+        unset($validated['galeri']);
 
         if ($request->hasFile('foto')) {
             if ($mess->foto) {
@@ -111,6 +131,7 @@ class MessController extends Controller
         }
 
         $mess->update($validated);
+        $this->saveGaleri($mess, $galeri);
 
         ActivityLog::record($request->user(), 'update', 'mess', (string) $mess->id, "Memperbarui Mess: {$mess->nama}");
 
@@ -149,6 +170,40 @@ class MessController extends Controller
         }
 
         return redirect()->route('messes.index')->with('success', 'Mess berhasil dihapus.');
+    }
+
+    /**
+     * Fasilitas diisi admin sebagai teks dipisah koma (mis. "AC, WiFi, TV")
+     * lewat satu textarea, disimpan sebagai array JSON (Mess::$casts).
+     */
+    private function parseFasilitas(?string $raw): ?array
+    {
+        if (blank($raw)) {
+            return null;
+        }
+
+        $items = array_filter(array_map('trim', explode(',', $raw)));
+
+        return empty($items) ? null : array_values($items);
+    }
+
+    /**
+     * Galeri foto (poin 1 panduan pengembangan fitur) - terpisah dari foto
+     * utama/cover, unit boleh punya lebih dari satu foto.
+     */
+    private function saveGaleri(Mess $mess, array $files): void
+    {
+        $urutan = $mess->photos()->max('urutan') ?? 0;
+
+        foreach ($files as $file) {
+            $urutan++;
+            UnitPhoto::create([
+                'bookable_type' => Mess::class,
+                'bookable_id' => $mess->id,
+                'path' => $file->store('mess-galeri', 'public'),
+                'urutan' => $urutan,
+            ]);
+        }
     }
 
     /**

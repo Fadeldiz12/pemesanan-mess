@@ -31,6 +31,12 @@
                     <textarea id="deskripsi" name="deskripsi" rows="3" class="form-control" placeholder="Deskripsi singkat mengenai unit bungalow ini...">{{ old('deskripsi') }}</textarea>
                 </div>
 
+                <div class="mb-3">
+                    <label for="fasilitas" class="form-label">Fasilitas</label>
+                    <input type="text" id="fasilitas" name="fasilitas" class="form-control" value="{{ old('fasilitas') }}" placeholder="Contoh: AC, WiFi, Dapur, Halaman">
+                    <div class="form-text">Pisahkan tiap fasilitas dengan koma.</div>
+                </div>
+
                 <div class="row g-3 mb-3">
                     <div class="col-12 col-md-4">
                         <label for="kapasitas" class="form-label">Kapasitas (Orang)</label>
@@ -60,8 +66,14 @@
                 @include('partials.unit-price-matrix')
 
                 <div class="mb-3">
-                    <label for="foto" class="form-label">Foto <span class="text-secondary fw-normal">(opsional)</span></label>
+                    <label for="foto" class="form-label">Foto Utama <span class="text-secondary fw-normal">(opsional)</span></label>
                     <input type="file" id="foto" name="foto" class="form-control" accept="image/*">
+                </div>
+
+                <div class="mb-3">
+                    <label for="galeri" class="form-label">Galeri Foto <span class="text-secondary fw-normal">(opsional)</span></label>
+                    <input type="file" id="galeri" name="galeri[]" class="form-control" accept="image/*" multiple>
+                    <div class="form-text">Bisa pilih lebih dari satu foto sekaligus.</div>
                 </div>
 
                 <div class="d-flex justify-content-end gap-2 border-top pt-3">

@@ -23,8 +23,15 @@
                     </div>
                 @endif
 
+                @if(request('preselect_unit_id'))
+                    <div class="alert alert-info py-2 mb-3">
+                        <i class="ti ti-info-circle me-1"></i>Unit yang Anda pilih dari katalog akan otomatis ditandai di langkah berikutnya, selama masih memenuhi syarat kapasitas &amp; jabatan tamu.
+                    </div>
+                @endif
+
                 <form action="{{ route('peminjaman.create.unit') }}" method="POST">
                     @csrf
+                    <input type="hidden" name="preselect_unit_id" value="{{ old('preselect_unit_id', request('preselect_unit_id')) }}">
 
                     <div class="row g-3 mb-3">
                         <div class="col-12 col-md-6">
@@ -57,10 +64,10 @@
                     <div class="mb-3">
                         <label class="form-label d-block">Jenis Unit</label>
                         <div class="btn-group" role="group">
-                            <input type="radio" class="btn-check" name="unit_type" id="jenis_kamar" value="kamar" @checked(old('unit_type', 'kamar') === 'kamar')>
+                            <input type="radio" class="btn-check" name="unit_type" id="jenis_kamar" value="kamar" @checked(old('unit_type', request('unit_type', 'kamar')) === 'kamar')>
                             <label class="btn btn-outline-primary" for="jenis_kamar"><i class="ti ti-bed me-1"></i>Kamar Mess</label>
 
-                            <input type="radio" class="btn-check" name="unit_type" id="jenis_bungalow" value="bungalow" @checked(old('unit_type') === 'bungalow')>
+                            <input type="radio" class="btn-check" name="unit_type" id="jenis_bungalow" value="bungalow" @checked(old('unit_type', request('unit_type')) === 'bungalow')>
                             <label class="btn btn-outline-primary" for="jenis_bungalow"><i class="ti ti-building-cottage me-1"></i>Bungalow</label>
                         </div>
                     </div>

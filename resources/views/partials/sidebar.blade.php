@@ -18,6 +18,7 @@
         ]],
 
         ['type' => 'group', 'label' => 'Peminjaman Mess', 'icon' => 'ti ti-calendar-event', 'key' => 'peminjaman', 'children' => [
+            ['label' => 'Katalog Unit', 'route' => 'katalog.index', 'can' => 'peminjaman-mess'],
             ['label' => 'Ajukan Peminjaman', 'route' => 'peminjaman.create', 'can' => 'peminjaman-mess', 'action' => 'create'],
             ['label' => 'Daftar Peminjaman', 'route' => 'peminjaman-mess.index', 'can' => 'peminjaman-mess'],
         ]],

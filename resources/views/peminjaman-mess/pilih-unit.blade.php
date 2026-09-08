@@ -57,13 +57,16 @@
                         <div class="list-group mb-4">
                             @foreach ($units as $i => $row)
                                 @php $unit = $row['unit']; @endphp
-                                <label class="list-group-item d-flex align-items-start gap-3">
+                                <label class="list-group-item d-flex align-items-start gap-3 {{ ($preselectUnitId ?? null) === $unit->id ? 'border-primary bg-primary bg-opacity-10' : '' }}">
                                     <input type="radio" name="unit_id" value="{{ $unit->id }}" class="form-check-input mt-1" required @checked($i === 0)>
                                     <span class="flex-grow-1">
                                         <span class="fw-semibold d-block">
                                             {{ $unit->nama_kamar ?? $unit->nama }}
                                             @if($step1['unit_type'] === 'kamar')
                                                 <span class="text-secondary small">({{ $unit->mess->nama }})</span>
+                                            @endif
+                                            @if(($preselectUnitId ?? null) === $unit->id)
+                                                <span class="badge bg-primary ms-1">Unit Pilihan Anda</span>
                                             @endif
                                         </span>
                                         <span class="text-secondary small">Kapasitas {{ $unit->kapasitas }} orang &middot; Minimum jabatan {{ $unit->minimum_jabatan }}</span>

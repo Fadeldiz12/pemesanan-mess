@@ -37,10 +37,12 @@ class Kamar extends Model
         'minimum_jabatan',
         'deskripsi',
         'foto',
+        'fasilitas',
     ];
 
     protected $casts = [
         'kapasitas' => 'integer',
+        'fasilitas' => 'array',
     ];
 
     public function mess(): BelongsTo
@@ -61,6 +63,11 @@ class Kamar extends Model
     public function prices(): MorphMany
     {
         return $this->morphMany(UnitPrice::class, 'bookable');
+    }
+
+    public function photos(): MorphMany
+    {
+        return $this->morphMany(UnitPhoto::class, 'bookable')->orderBy('urutan');
     }
 
     public function priceFor(Jabatan $jabatan): int

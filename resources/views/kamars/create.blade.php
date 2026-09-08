@@ -45,8 +45,20 @@
         </div>
 
         <div class="mb-3">
-            <label for="foto" class="form-label">Foto</label>
+            <label for="fasilitas" class="form-label">Fasilitas</label>
+            <input type="text" name="fasilitas" id="fasilitas" class="form-control" value="{{ old('fasilitas') }}" placeholder="Contoh: AC, WiFi, TV, Kamar Mandi Dalam">
+            <div class="form-text">Pisahkan tiap fasilitas dengan koma.</div>
+        </div>
+
+        <div class="mb-3">
+            <label for="foto" class="form-label">Foto Utama</label>
             <input type="file" name="foto" id="foto" class="form-control" accept="image/*">
+        </div>
+
+        <div class="mb-3">
+            <label for="galeri" class="form-label">Galeri Foto</label>
+            <input type="file" name="galeri[]" id="galeri" class="form-control" accept="image/*" multiple>
+            <div class="form-text">Bisa pilih lebih dari satu foto sekaligus.</div>
         </div>
 
         <div class="mb-3">

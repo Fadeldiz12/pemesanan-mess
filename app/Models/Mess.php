@@ -19,7 +19,12 @@ class Mess extends Model
         'alamat',
         'deskripsi',
         'foto',
+        'fasilitas',
         'status',
+    ];
+
+    protected $casts = [
+        'fasilitas' => 'array',
     ];
 
     public function kamars(): HasMany
@@ -30,5 +35,10 @@ class Mess extends Model
     public function expenses(): MorphMany
     {
         return $this->morphMany(Expense::class, 'bookable');
+    }
+
+    public function photos(): MorphMany
+    {
+        return $this->morphMany(UnitPhoto::class, 'bookable')->orderBy('urutan');
     }
 }
