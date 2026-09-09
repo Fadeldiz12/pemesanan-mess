@@ -5,7 +5,7 @@
 
 @section('content')
 <div class="row justify-content-center">
-    <div class="col-12 col-xl-9">
+    <div class="col-12 col-xl-10">
         <div class="card mb-4">
             <div class="card-header bg-white">
                 <h2 class="fs-5 mb-0">Ringkasan Data Tamu</h2>
@@ -30,7 +30,7 @@
 
         <div class="card">
             <div class="card-header bg-white">
-                <h2 class="fs-5 mb-0">Pilih {{ $step1['unit_type'] === 'kamar' ? 'Kamar' : 'Bungalow' }}</h2>
+                <h2 class="fs-5 mb-0">Katalog {{ $step1['unit_type'] === 'kamar' ? 'Kamar' : 'Bungalow' }} untuk Jabatan {{ $jabatan->nama }}</h2>
                 <p class="text-secondary small mb-0">Hanya unit dengan kapasitas cukup dan syarat jabatan yang terpenuhi yang ditampilkan.</p>
             </div>
 
@@ -54,25 +54,50 @@
                             <input type="hidden" name="{{ $key }}" value="{{ $value }}">
                         @endforeach
 
-                        <div class="list-group mb-4">
+                        <div class="row g-3 mb-4">
                             @foreach ($units as $i => $row)
-                                @php $unit = $row['unit']; @endphp
-                                <label class="list-group-item d-flex align-items-start gap-3 {{ ($preselectUnitId ?? null) === $unit->id ? 'border-primary bg-primary bg-opacity-10' : '' }}">
-                                    <input type="radio" name="unit_id" value="{{ $unit->id }}" class="form-check-input mt-1" required @checked($i === 0)>
-                                    <span class="flex-grow-1">
-                                        <span class="fw-semibold d-block">
-                                            {{ $unit->nama_kamar ?? $unit->nama }}
-                                            @if($step1['unit_type'] === 'kamar')
-                                                <span class="text-secondary small">({{ $unit->mess->nama }})</span>
-                                            @endif
-                                            @if(($preselectUnitId ?? null) === $unit->id)
-                                                <span class="badge bg-primary ms-1">Unit Pilihan Anda</span>
-                                            @endif
-                                        </span>
-                                        <span class="text-secondary small">Kapasitas {{ $unit->kapasitas }} orang &middot; Minimum jabatan {{ $unit->minimum_jabatan }}</span>
-                                    </span>
-                                    <span class="fw-semibold text-primary">Rp {{ number_format($row['harga'], 0, ',', '.') }}</span>
-                                </label>
+                                @php
+                                    $unit = $row['unit'];
+                                    $isPreselected = ($preselectUnitId ?? null) === $unit->id;
+                                    $cover = $unit->photos->first()->path ?? $unit->foto;
+                                    $detailRoute = $step1['unit_type'] === 'kamar'
+                                        ? route('katalog.mess', $unit->mess)
+                                        : route('katalog.bungalow', $unit);
+                                @endphp
+                                <div class="col-12 col-sm-6 col-lg-4">
+                                    <div class="card h-100 border unit-pilih-card {{ $isPreselected ? 'border-primary' : '' }}">
+                                        <input type="radio" name="unit_id" id="unit_{{ $unit->id }}" value="{{ $unit->id }}" class="form-check-input position-absolute top-0 start-0 m-2" style="width:1.25rem;height:1.25rem;z-index:2;" required @checked($i === 0)>
+
+                                        <label for="unit_{{ $unit->id }}" class="text-reset text-decoration-none" style="cursor:pointer;">
+                                            <div class="position-relative">
+                                                @if($cover)
+                                                    <img src="{{ asset('storage/' . $cover) }}" class="card-img-top" style="height:160px;object-fit:cover;" alt="{{ $unit->nama_kamar ?? $unit->nama }}">
+                                                @else
+                                                    <div class="bg-light d-flex align-items-center justify-content-center" style="height:160px;">
+                                                        <i class="ti ti-{{ $step1['unit_type'] === 'kamar' ? 'bed' : 'building-cottage' }} text-secondary" style="font-size:2.5rem;"></i>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                            <div class="card-body pb-2">
+                                                <h3 class="fs-6 fw-bold text-dark mb-1">
+                                                    {{ $unit->nama_kamar ?? $unit->nama }}
+                                                    @if($step1['unit_type'] === 'kamar')
+                                                        <span class="text-secondary small fw-normal">({{ $unit->mess->nama }})</span>
+                                                    @endif
+                                                    @if($isPreselected)
+                                                        <span class="badge bg-primary ms-1">Unit Pilihan Anda</span>
+                                                    @endif
+                                                </h3>
+                                                <p class="text-secondary small mb-2"><i class="ti ti-users me-1"></i>{{ $unit->kapasitas }} orang &middot; Min. jabatan {{ $unit->minimum_jabatan }}</p>
+                                                <span class="fw-semibold text-primary">Rp {{ number_format($row['harga'], 0, ',', '.') }}</span>
+                                            </div>
+                                        </label>
+
+                                        <div class="card-body pt-0">
+                                            <a href="{{ $detailRoute }}" target="_blank" rel="noopener" class="small"><i class="ti ti-eye me-1"></i>Lihat Detail &amp; Foto</a>
+                                        </div>
+                                    </div>
+                                </div>
                             @endforeach
                         </div>
 
@@ -86,4 +111,23 @@
         </div>
     </div>
 </div>
+
+<style>
+    .unit-pilih-card:has(input:checked) {
+        border-color: var(--bs-primary) !important;
+        box-shadow: 0 0 0 2px rgba(var(--bs-primary-rgb), .25);
+    }
+</style>
+<script>
+    document.querySelectorAll('.unit-pilih-card input[type="radio"]').forEach(function (radio) {
+        radio.addEventListener('change', function () {
+            document.querySelectorAll('.unit-pilih-card').forEach(function (card) {
+                card.classList.remove('border-primary');
+            });
+            if (radio.checked) {
+                radio.closest('.unit-pilih-card').classList.add('border-primary');
+            }
+        });
+    });
+</script>
 @endsection

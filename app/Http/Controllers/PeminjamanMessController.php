@@ -99,8 +99,8 @@ class PeminjamanMessController extends Controller
         $jabatan = Jabatan::where('nama', $step1['peminjam_jabatan'])->where('status', 'Aktif')->firstOrFail();
 
         $units = $step1['unit_type'] === 'kamar'
-            ? Kamar::where('status_ketersediaan', 'Aktif')->where('kapasitas', '>=', $step1['jumlah_tamu'])->with('mess')->get()
-            : Bungalow::where('status', 'aktif')->where('kapasitas', '>=', $step1['jumlah_tamu'])->get();
+            ? Kamar::where('status_ketersediaan', 'Aktif')->where('kapasitas', '>=', $step1['jumlah_tamu'])->with(['mess', 'photos'])->get()
+            : Bungalow::where('status', 'aktif')->where('kapasitas', '>=', $step1['jumlah_tamu'])->with('photos')->get();
 
         $units = $units
             ->filter(fn ($unit) => MessBorrowing::jabatanLevel($unit->minimum_jabatan) <= $jabatan->level)
