@@ -11,6 +11,7 @@ use App\Models\MessBorrowing;
 use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -263,8 +264,8 @@ class PeminjamanMessController extends Controller
             return MessBorrowing::create([
                 'bookable_type' => $bookableClass,
                 'bookable_id' => $unit->id,
-                'waktu_mulai' => $step1['waktu_mulai'],
-                'waktu_selesai' => $step1['waktu_selesai'],
+                'waktu_mulai' => $this->waktuMulaiDariStep1($step1),
+                'waktu_selesai' => $this->waktuSelesaiDariStep1($step1),
                 'peminjam_department' => $user->department,
                 'peminjam_sub_department' => $user->sub_department,
                 'peminjam_role' => $user->role,
@@ -780,6 +781,14 @@ class PeminjamanMessController extends Controller
     }
 
     /**
+     * Jam check-in/check-out selalu tetap (kebijakan mess/bungalow), jadi
+     * admin cuma perlu isi TANGGAL - jamnya ditempelkan otomatis di
+     * waktuMulaiDariStep1()/waktuSelesaiDariStep1() saat mau disimpan.
+     */
+    private const JAM_CHECK_IN = '12:00';
+    private const JAM_CHECK_OUT = '10:00';
+
+    /**
      * Validasi field tahap 1 (data tamu) - dipakai bareng oleh pilihUnit()
      * (tahap 2) dan store() (tahap 3), supaya field yang dikirim ulang
      * lewat hidden input dari halaman pilih-unit tetap divalidasi ulang
@@ -797,11 +806,27 @@ class PeminjamanMessController extends Controller
             'peminjam_jabatan' => ['required', 'string', Rule::exists('jabatans', 'nama')->where('status', 'Aktif')],
             'jumlah_tamu' => ['required', 'integer', 'min:1'],
             'unit_type' => ['required', Rule::in(array_keys(self::BOOKABLE_MAP))],
-            'waktu_mulai' => ['required', 'date', 'after_or_equal:now'],
-            'waktu_selesai' => ['required', 'date', 'after:waktu_mulai'],
+            // Cuma tanggal - jam check-in/check-out sudah tetap (lihat
+            // JAM_CHECK_IN/JAM_CHECK_OUT), gak perlu dipilih admin. 'today'
+            // (bukan 'now') supaya tanggal hari ini tetap boleh diinput
+            // kapan pun, walau jam check-in (12:00) sudah lewat saat ini.
+            'tanggal_masuk' => ['required', 'date', 'after_or_equal:today'],
+            // Checkout (10:00) lebih pagi dari check-in (12:00), jadi
+            // gak mungkin dalam hari yang sama - wajib strictly after.
+            'tanggal_keluar' => ['required', 'date', 'after:tanggal_masuk'],
             'keperluan' => ['required', 'string', 'max:500'],
             'note' => ['nullable', 'string', 'max:500'],
         ]);
+    }
+
+    private function waktuMulaiDariStep1(array $step1): Carbon
+    {
+        return Carbon::parse($step1['tanggal_masuk'] . ' ' . self::JAM_CHECK_IN);
+    }
+
+    private function waktuSelesaiDariStep1(array $step1): Carbon
+    {
+        return Carbon::parse($step1['tanggal_keluar'] . ' ' . self::JAM_CHECK_OUT);
     }
 
     private function currentStage(MessBorrowing $peminjaman): ?string

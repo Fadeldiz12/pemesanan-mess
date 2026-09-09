@@ -22,7 +22,7 @@
                     <dd class="col-sm-9">{{ $step1['jumlah_tamu'] }} orang</dd>
 
                     <dt class="col-sm-3">Tanggal Masuk - Keluar</dt>
-                    <dd class="col-sm-9">{{ \Carbon\Carbon::parse($step1['waktu_mulai'])->format('d M Y, H:i') }} s.d. {{ \Carbon\Carbon::parse($step1['waktu_selesai'])->format('d M Y, H:i') }}</dd>
+                    <dd class="col-sm-9">{{ \Carbon\Carbon::parse($step1['tanggal_masuk'])->format('d M Y') }} (12:00) s.d. {{ \Carbon\Carbon::parse($step1['tanggal_keluar'])->format('d M Y') }} (10:00)</dd>
                 </dl>
                 <a href="{{ route('peminjaman.create') }}" class="small">&laquo; Ubah data tamu</a>
             </div>

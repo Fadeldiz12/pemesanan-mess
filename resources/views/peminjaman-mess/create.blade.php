@@ -74,12 +74,14 @@
 
                     <div class="row g-3 mb-3">
                         <div class="col-12 col-md-6">
-                            <label for="waktu_mulai" class="form-label">Tanggal Masuk</label>
-                            <input type="datetime-local" name="waktu_mulai" id="waktu_mulai" class="form-control" value="{{ old('waktu_mulai') }}" required>
+                            <label for="tanggal_masuk" class="form-label">Tanggal Masuk</label>
+                            <input type="date" name="tanggal_masuk" id="tanggal_masuk" class="form-control" value="{{ old('tanggal_masuk') }}" min="{{ now()->format('Y-m-d') }}" required>
+                            <div class="form-text">Check-in jam 12:00.</div>
                         </div>
                         <div class="col-12 col-md-6">
-                            <label for="waktu_selesai" class="form-label">Tanggal Keluar</label>
-                            <input type="datetime-local" name="waktu_selesai" id="waktu_selesai" class="form-control" value="{{ old('waktu_selesai') }}" required>
+                            <label for="tanggal_keluar" class="form-label">Tanggal Keluar</label>
+                            <input type="date" name="tanggal_keluar" id="tanggal_keluar" class="form-control" value="{{ old('tanggal_keluar') }}" min="{{ now()->format('Y-m-d') }}" required>
+                            <div class="form-text">Check-out jam 10:00.</div>
                         </div>
                     </div>
 
