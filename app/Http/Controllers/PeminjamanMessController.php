@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\Bungalow;
 use App\Models\Jabatan;
 use App\Models\Kamar;
+use App\Models\Mess;
 use App\Models\MessBorrowing;
 use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
@@ -83,7 +84,12 @@ class PeminjamanMessController extends Controller
     }
 
     /**
-     * Tahap 2: Pilih unit. Unit yang ditampilkan difilter berdasarkan
+     * Tahap 2: Pilih unit. Untuk Bungalow, langsung tampil daftar. Untuk
+     * Kamar, pilih Mess dulu (lihat pilihKamarDalamMess()) - satu mess
+     * bisa punya banyak kamar, jadi admin perlu tahu gedung/lokasinya
+     * dulu sebelum masuk ke daftar kamar di dalamnya.
+     *
+     * Unit yang ditampilkan (di kedua sub-tahap) difilter berdasarkan
      * status aktif, kapasitas vs jumlah tamu (README fitur baru), dan
      * jabatan TAMU (bukan role Admin Sub Bagian yang login) vs
      * minimum_jabatan unit. Sekalian tampilkan harga per unit untuk
@@ -97,27 +103,102 @@ class PeminjamanMessController extends Controller
 
         $step1 = $this->validateStep1($request);
         $jabatan = Jabatan::where('nama', $step1['peminjam_jabatan'])->where('status', 'Aktif')->firstOrFail();
-
-        $units = $step1['unit_type'] === 'kamar'
-            ? Kamar::where('status_ketersediaan', 'Aktif')->where('kapasitas', '>=', $step1['jumlah_tamu'])->with(['mess', 'photos'])->get()
-            : Bungalow::where('status', 'aktif')->where('kapasitas', '>=', $step1['jumlah_tamu'])->with('photos')->get();
-
-        $units = $units
-            ->filter(fn ($unit) => MessBorrowing::jabatanLevel($unit->minimum_jabatan) <= $jabatan->level)
-            ->map(fn ($unit) => ['unit' => $unit, 'harga' => $unit->priceFor($jabatan)]);
-
-        // Unit "ter-pilih otomatis" (poin 1 panduan pengembangan fitur) -
-        // datang dari tombol "Pesan Sekarang" di halaman Katalog. Kalau
-        // unit itu masih memenuhi syarat kapasitas/jabatan di atas,
-        // majukan ke urutan pertama supaya otomatis ke-checklist; kalau
-        // sudah tidak memenuhi syarat, tetap tampilkan daftar lengkap
-        // seperti biasa (silent fallback, bukan error).
         $preselectUnitId = $request->integer('preselect_unit_id') ?: null;
-        if ($preselectUnitId) {
-            $units = $units->sortByDesc(fn ($row) => $row['unit']->id === $preselectUnitId)->values();
+
+        if ($step1['unit_type'] === 'bungalow') {
+            $units = $this->preselectFirst($this->eligibleBungalows($step1['jumlah_tamu'], $jabatan), $preselectUnitId);
+
+            return view('peminjaman-mess.pilih-unit', compact('step1', 'units', 'jabatan', 'preselectUnitId'));
         }
 
-        return view('peminjaman-mess.pilih-unit', compact('step1', 'units', 'jabatan', 'preselectUnitId'));
+        // Kamar: bukan langsung tampil flat, tapi pilih Mess (gedung)-nya
+        // dulu - satu mess bisa punya banyak kamar dan admin perlu tahu
+        // lokasinya dulu sebelum masuk ke daftar kamar. Fasilitas mess
+        // ditampilkan saat hover di kartunya (pilih-mess.blade.php).
+        $eligibleKamars = $this->eligibleKamars($step1['jumlah_tamu'], $jabatan);
+
+        // KECUALI kalau sudah ada unit ter-pilih otomatis dari Katalog
+        // (tombol "Pesan Sekarang") dan kamar itu masih memenuhi syarat -
+        // mess-nya sudah jelas dari kamar itu sendiri, jadi percuma minta
+        // pilih Mess lagi. Langsung loncat ke daftar kamar di mess
+        // tersebut, dengan kamar itu ter-checklist duluan (perilaku ini
+        // sudah dikunci lewat KatalogUnitTest sebelum perubahan alur ini).
+        if ($preselectUnitId) {
+            $preselected = $eligibleKamars->firstWhere('unit.id', $preselectUnitId);
+            if ($preselected) {
+                $mess = $preselected['unit']->mess;
+                $units = $this->preselectFirst($eligibleKamars->where('unit.mess_id', $mess->id)->values(), $preselectUnitId);
+
+                return view('peminjaman-mess.pilih-unit', compact('step1', 'units', 'jabatan', 'preselectUnitId', 'mess'));
+            }
+        }
+
+        $kamarsByMess = $eligibleKamars->groupBy('unit.mess_id');
+
+        $messes = Mess::where('status', 'Aktif')
+            ->whereIn('id', $kamarsByMess->keys())
+            ->get()
+            ->map(fn ($mess) => ['mess' => $mess, 'jumlah_kamar' => $kamarsByMess->get($mess->id)->count()]);
+
+        return view('peminjaman-mess.pilih-mess', compact('step1', 'jabatan', 'messes', 'preselectUnitId'));
+    }
+
+    /**
+     * Sub-tahap khusus Kamar: daftar kamar DI DALAM satu Mess yang dipilih
+     * di pilih-mess.blade.php - filter kapasitas & jabatan sama seperti
+     * pilihUnit(), cuma ditambah scope mess_id.
+     */
+    public function pilihKamarDalamMess(Request $request)
+    {
+        $this->authorizeAction($request, 'create');
+
+        $step1 = $this->validateStep1($request);
+        $jabatan = Jabatan::where('nama', $step1['peminjam_jabatan'])->where('status', 'Aktif')->firstOrFail();
+        $mess = Mess::where('status', 'Aktif')->findOrFail($request->integer('mess_id'));
+
+        $units = $this->preselectFirst(
+            $this->eligibleKamars($step1['jumlah_tamu'], $jabatan, $mess->id),
+            $preselectUnitId = $request->integer('preselect_unit_id') ?: null
+        );
+
+        return view('peminjaman-mess.pilih-unit', compact('step1', 'units', 'jabatan', 'preselectUnitId', 'mess'));
+    }
+
+    private function eligibleKamars(int $jumlahTamu, Jabatan $jabatan, ?int $messId = null)
+    {
+        return Kamar::where('status_ketersediaan', 'Aktif')
+            ->where('kapasitas', '>=', $jumlahTamu)
+            ->when($messId, fn ($q) => $q->where('mess_id', $messId))
+            ->with(['mess', 'photos'])
+            ->get()
+            ->filter(fn ($kamar) => MessBorrowing::jabatanLevel($kamar->minimum_jabatan) <= $jabatan->level)
+            ->map(fn ($kamar) => ['unit' => $kamar, 'harga' => $kamar->priceFor($jabatan)]);
+    }
+
+    private function eligibleBungalows(int $jumlahTamu, Jabatan $jabatan)
+    {
+        return Bungalow::where('status', 'aktif')
+            ->where('kapasitas', '>=', $jumlahTamu)
+            ->with('photos')
+            ->get()
+            ->filter(fn ($bungalow) => MessBorrowing::jabatanLevel($bungalow->minimum_jabatan) <= $jabatan->level)
+            ->map(fn ($bungalow) => ['unit' => $bungalow, 'harga' => $bungalow->priceFor($jabatan)]);
+    }
+
+    /**
+     * Unit "ter-pilih otomatis" (poin 1 panduan pengembangan fitur) - datang
+     * dari tombol "Pesan Sekarang" di halaman Katalog. Kalau unit itu masih
+     * memenuhi syarat kapasitas/jabatan, majukan ke urutan pertama supaya
+     * otomatis ke-checklist; kalau sudah tidak memenuhi syarat, tetap
+     * tampilkan daftar lengkap seperti biasa (silent fallback, bukan error).
+     */
+    private function preselectFirst($units, ?int $preselectUnitId)
+    {
+        if (! $preselectUnitId) {
+            return $units;
+        }
+
+        return $units->sortByDesc(fn ($row) => $row['unit']->id === $preselectUnitId)->values();
     }
 
     public function show(Request $request, MessBorrowing $peminjaman)

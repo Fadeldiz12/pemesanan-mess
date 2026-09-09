@@ -64,10 +64,16 @@ class GuestBookingWizardTest extends TestCase
             'note' => '',
         ];
 
-        $pilihUnitResponse = $this->actingAs($admin)->post(route('peminjaman.create.unit'), $step1);
-        $pilihUnitResponse->assertOk();
-        $pilihUnitResponse->assertSee('Kamar VIP');
-        $pilihUnitResponse->assertSee('250.000');
+        // Kamar TIDAK langsung ditampilkan - harus pilih Mess dulu.
+        $pilihMessResponse = $this->actingAs($admin)->post(route('peminjaman.create.unit'), $step1);
+        $pilihMessResponse->assertOk();
+        $pilihMessResponse->assertSee('Mess A');
+        $pilihMessResponse->assertDontSee('Kamar VIP');
+
+        $pilihKamarResponse = $this->actingAs($admin)->post(route('peminjaman.create.unit.mess'), array_merge($step1, ['mess_id' => $mess->id]));
+        $pilihKamarResponse->assertOk();
+        $pilihKamarResponse->assertSee('Kamar VIP');
+        $pilihKamarResponse->assertSee('250.000');
 
         $storeResponse = $this->actingAs($admin)->post(route('peminjaman.store'), array_merge($step1, ['unit_id' => $kamar->id]));
         $storeResponse->assertRedirect(route('peminjaman-mess.index'));
@@ -83,6 +89,35 @@ class GuestBookingWizardTest extends TestCase
         // Staff stage tetap ke-skip otomatis karena peminjam_role = 'Staff Approval'.
         $this->assertSame('Disetujui', $peminjaman->staff_approval_status);
         $this->assertSame('Menunggu', $peminjaman->kasubbag_approval_status);
+    }
+
+    public function test_mess_picker_hides_messes_without_eligible_kamar_and_shows_fasilitas(): void
+    {
+        Jabatan::create(['nama' => 'Staff', 'level' => 1, 'status' => 'Aktif']);
+
+        $messCocok = Mess::create(['nama' => 'Mess Cocok', 'alamat' => 'X', 'status' => 'Aktif', 'fasilitas' => ['WiFi', 'AC']]);
+        $messCocok->kamars()->create(['nama_kamar' => 'Kamar Muat', 'kapasitas' => 5, 'status_ketersediaan' => 'Aktif', 'minimum_jabatan' => 'Staff']);
+
+        // Mess ini kamarnya kapasitasnya kurang buat 5 tamu - mess-nya
+        // sendiri sama sekali TIDAK boleh muncul di halaman pilih mess.
+        $messTakCocok = Mess::create(['nama' => 'Mess Sempit', 'alamat' => 'Y', 'status' => 'Aktif']);
+        $messTakCocok->kamars()->create(['nama_kamar' => 'Kamar Sempit', 'kapasitas' => 1, 'status_ketersediaan' => 'Aktif', 'minimum_jabatan' => 'Staff']);
+
+        $admin = $this->makeUser('Staff Approval');
+
+        $response = $this->actingAs($admin)->post(route('peminjaman.create.unit'), [
+            'nama' => 'Tamu', 'telepon' => '0811', 'peminjam_jabatan' => 'Staff',
+            'jumlah_tamu' => 5, 'unit_type' => 'kamar',
+            'waktu_mulai' => now()->addDay()->format('Y-m-d\TH:i'),
+            'waktu_selesai' => now()->addDays(2)->format('Y-m-d\TH:i'),
+            'keperluan' => 'Test', 'note' => '',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('Mess Cocok');
+        $response->assertSee('WiFi');
+        $response->assertSee('AC');
+        $response->assertDontSee('Mess Sempit');
     }
 
     public function test_store_rejects_unit_over_capacity_even_if_hidden_fields_tampered(): void
