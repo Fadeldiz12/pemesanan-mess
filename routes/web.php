@@ -63,6 +63,7 @@ Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->gr
     Route::get('/peminjaman-mess', [PeminjamanMessController::class, 'index'])->name('peminjaman-mess.index');
     Route::get('/peminjaman-mess/create', [PeminjamanMessController::class, 'create'])->name('peminjaman.create');
     Route::post('/peminjaman-mess/create/unit', [PeminjamanMessController::class, 'pilihUnit'])->name('peminjaman.create.unit');
+    Route::post('/peminjaman-mess/create/unit/mess', [PeminjamanMessController::class, 'pilihKamarDalamMess'])->name('peminjaman.create.unit.mess');
     Route::post('/peminjaman-mess', [PeminjamanMessController::class, 'store'])->name('peminjaman.store');
 
     // Detail & Pembatalan Peminjaman

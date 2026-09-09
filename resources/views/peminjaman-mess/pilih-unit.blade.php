@@ -30,7 +30,13 @@
 
         <div class="card">
             <div class="card-header bg-white">
-                <h2 class="fs-5 mb-0">Katalog {{ $step1['unit_type'] === 'kamar' ? 'Kamar' : 'Bungalow' }} untuk Jabatan {{ $jabatan->nama }}</h2>
+                <h2 class="fs-5 mb-0">
+                    @if(isset($mess))
+                        Pilih Kamar di {{ $mess->nama }}
+                    @else
+                        Katalog Bungalow untuk Jabatan {{ $jabatan->nama }}
+                    @endif
+                </h2>
                 <p class="text-secondary small mb-0">Hanya unit dengan kapasitas cukup dan syarat jabatan yang terpenuhi yang ditampilkan.</p>
             </div>
 
@@ -81,7 +87,7 @@
                                             <div class="card-body pb-2">
                                                 <h3 class="fs-6 fw-bold text-dark mb-1">
                                                     {{ $unit->nama_kamar ?? $unit->nama }}
-                                                    @if($step1['unit_type'] === 'kamar')
+                                                    @if($step1['unit_type'] === 'kamar' && !isset($mess))
                                                         <span class="text-secondary small fw-normal">({{ $unit->mess->nama }})</span>
                                                     @endif
                                                     @if($isPreselected)
@@ -102,10 +108,22 @@
                         </div>
 
                         <div class="d-flex justify-content-end gap-2 border-top pt-3">
-                            <a href="{{ route('peminjaman.create') }}" class="btn btn-light">Kembali</a>
+                            @unless(isset($mess))
+                                <a href="{{ route('peminjaman.create') }}" class="btn btn-light">Kembali</a>
+                            @endunless
                             <button type="submit" class="btn btn-primary"><i class="ti ti-send me-1"></i>Ajukan Peminjaman</button>
                         </div>
                     </form>
+
+                    @isset($mess)
+                        <form action="{{ route('peminjaman.create.unit') }}" method="POST" class="mt-2">
+                            @csrf
+                            @foreach ($step1 as $key => $value)
+                                <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                            @endforeach
+                            <button type="submit" class="btn btn-light btn-sm"><i class="ti ti-arrow-left me-1"></i>Kembali ke Pilih Mess</button>
+                        </form>
+                    @endisset
                 @endif
             </div>
         </div>
