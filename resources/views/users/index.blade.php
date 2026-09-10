@@ -5,7 +5,7 @@
     $canUpdate = \App\Support\AccessMatrix::can('users', 'update');
     $canDelete = \App\Support\AccessMatrix::can('users', 'delete');
 @endphp
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-start align-items-sm-center flex-wrap gap-2 mb-3">
     <div></div>
     @if($canCreate)<a class="btn btn-primary" href="{{ route('users.create') }}"><i class="ti ti-user-plus me-1"></i>Tambah User</a>@endif
 </div>

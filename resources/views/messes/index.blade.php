@@ -44,8 +44,10 @@
                 @forelse($messes as $mess)
                     <tr>
                         <td class="toggle-cell" data-label="Nama Mess">
-                            <span class="fw-semibold">{{ $mess->nama }}</span>
-                            <i class="ti ti-chevron-down toggle-icon d-lg-none"></i>
+                            <div class="d-flex align-items-center">
+                                <span class="fw-semibold">{{ $mess->nama }}</span>
+                                <i class="ti ti-chevron-down toggle-icon d-md-none ms-2"></i>
+                            </div>
                         </td>
                         <td class="detail-data" data-label="Alamat">{{ $mess->alamat }}</td>
                         <td data-label="Jumlah Kamar">{{ $mess->kamars_count }} kamar</td>

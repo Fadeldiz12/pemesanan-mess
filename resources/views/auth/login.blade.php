@@ -3,7 +3,9 @@
 @section('title', 'Login - Peminjaman Mess PTPN 1')
 
 @section('content')
-<div class="container d-flex align-items-center justify-content-center" style="min-height: 100vh;">
+{{-- .screen-center pakai 100dvh (bukan 100vh) supaya kartunya benar-benar
+     ketengah di HP dan gak kepotong address bar - lihat public/css/mobile.css. --}}
+<div class="container d-flex align-items-center justify-content-center screen-center">
     <div class="card shadow-sm border-0" style="max-width: 420px; width: 100%;">
         <div class="card-body p-4 p-md-5">
             <div class="text-center mb-4">

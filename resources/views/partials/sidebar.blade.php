@@ -68,6 +68,11 @@
         <a href="{{ url('/dashboard') }}" class="d-inline-flex align-items-center text-decoration-none">
             <img src="{{ asset('inapp/assets/images/logo-ptpn1.png') }}" alt="PTPN 1" style="height:48px; width:auto; object-fit:contain;">
         </a>
+        {{-- Cuma tampil di HP (lihat .sidebar-close di mobile.css). Tanpa ini
+             drawer-nya cuma bisa ditutup dengan nge-tap overlay tipis di kanan. --}}
+        <button id="sidebarClose" type="button" class="sidebar-close" aria-label="Tutup menu">
+            <i class="ti ti-x"></i>
+        </button>
     </div>
     <ul class="nav flex-column">
         <li class="px-4 py-2"><small class="nav-text">Operasional</small></li>

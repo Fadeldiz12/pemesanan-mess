@@ -27,20 +27,20 @@
 @section('content')
 <a href="{{ route('katalog.index') }}" class="btn btn-light border btn-sm mb-3"><i class="ti ti-arrow-left me-1"></i>Kembali ke Katalog</a>
 
-<div class="row g-4">
+<div class="row g-4 has-booking-cta">
     <div class="col-12 col-xl-8">
         <div class="card border-0 shadow-sm mb-4">
             @if($allPhotos->isNotEmpty())
                 <div class="row g-1 p-1">
                     <div class="col-12 col-md-8">
-                        <img src="{{ asset('storage/' . $allPhotos->first()) }}" class="rounded" style="width:100%; height:320px; object-fit:cover;" alt="{{ $bungalow->nama }}">
+                        <img src="{{ asset('storage/' . $allPhotos->first()) }}" class="rounded katalog-hero" style="width:100%; height:320px; object-fit:cover;" alt="{{ $bungalow->nama }}">
                     </div>
                     @if($allPhotos->count() > 1)
                         <div class="col-12 col-md-4">
                             <div class="row g-1">
                                 @foreach($allPhotos->slice(1, 4) as $photo)
                                     <div class="col-6 col-md-12">
-                                        <img src="{{ asset('storage/' . $photo) }}" class="rounded" style="width:100%; height:154px; object-fit:cover;" alt="">
+                                        <img src="{{ asset('storage/' . $photo) }}" class="rounded katalog-hero-thumb" style="width:100%; height:154px; object-fit:cover;" alt="" loading="lazy">
                                     </div>
                                 @endforeach
                             </div>
@@ -56,7 +56,7 @@
                         <p class="text-secondary mb-0"><i class="ti ti-map-pin me-1"></i>{{ $bungalow->alamat }}</p>
                     </div>
                     @if($ratingCount > 0)
-                        <div class="text-end">
+                        <div class="text-start text-sm-end">
                             <div class="fs-5 fw-bold text-warning"><i class="ti ti-star-filled"></i> {{ number_format($ratingAverage, 1) }}</div>
                             <div class="small text-secondary">{{ $ratingCount }} ulasan</div>
                         </div>
@@ -123,10 +123,13 @@
         </div>
     </div>
 
+    {{-- Di HP kartu ini nempel di bawah layar sebagai action bar (lihat
+         .booking-cta di public/css/mobile.css), jadi tombol "Pesan Sekarang"
+         selalu kejangkau tanpa harus scroll sampai bawah dulu. --}}
     <div class="col-12 col-xl-4">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-4 text-center">
-                <span class="badge {{ $tersedia ? 'bg-success' : 'bg-danger' }} mb-3">{{ $tersedia ? 'Tersedia' : 'Tidak Tersedia' }}</span>
+        <div class="card border-0 shadow-sm booking-cta">
+            <div class="card-body p-3 p-xl-4 text-center">
+                <span class="badge {{ $tersedia ? 'bg-success' : 'bg-danger' }} mb-2 mb-xl-3">{{ $tersedia ? 'Tersedia' : 'Tidak Tersedia' }}</span>
                 @if($tersedia)
                     <a href="{{ route('peminjaman.create', ['unit_type' => 'bungalow', 'preselect_unit_id' => $bungalow->id]) }}" class="btn btn-primary w-100 py-2 fw-semibold">
                         Pesan Sekarang

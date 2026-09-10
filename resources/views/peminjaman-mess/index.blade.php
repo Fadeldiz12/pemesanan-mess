@@ -66,8 +66,10 @@
                     @endphp
                     <tr>
                         <td class="toggle-cell ps-4" data-label="Kode">
-                            <span class="fw-bold text-primary">{{ $item->peminjaman_code }}</span>
-                            <i class="ti ti-chevron-down toggle-icon d-lg-none ms-2"></i>
+                            <div class="d-flex align-items-center">
+                                <span class="fw-bold text-primary">{{ $item->peminjaman_code }}</span>
+                                <i class="ti ti-chevron-down toggle-icon d-md-none ms-2"></i>
+                            </div>
                         </td>
                         <td class="detail-data" data-label="Pemohon">
                             <div class="fw-semibold text-dark">{{ $item->peminjam_name }}</div>

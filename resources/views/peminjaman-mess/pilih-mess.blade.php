@@ -31,7 +31,7 @@
         <div class="card">
             <div class="card-header bg-white">
                 <h2 class="fs-5 mb-0">Pilih Mess</h2>
-                <p class="text-secondary small mb-0">Hanya mess dengan minimal 1 kamar yang sesuai kapasitas &amp; jabatan tamu yang ditampilkan. Arahkan kursor ke kartu untuk melihat fasilitasnya.</p>
+                <p class="text-secondary small mb-0">Hanya mess dengan minimal 1 kamar yang sesuai kapasitas &amp; jabatan tamu yang ditampilkan. Fasilitasnya muncul saat kartu disorot kursor <span class="d-none d-lg-inline">di komputer</span><span class="d-lg-none">, dan langsung ditampilkan di HP</span>.</p>
             </div>
 
             <div class="card-body">
@@ -67,9 +67,9 @@
                                     <button type="submit" name="mess_id" value="{{ $mess->id }}" class="mess-pilih-card card h-100 border-0 p-0 text-start w-100">
                                         <div class="position-relative">
                                             @if($cover)
-                                                <img src="{{ asset('storage/' . $cover) }}" class="card-img-top" style="height:160px;object-fit:cover;" alt="{{ $mess->nama }}">
+                                                <img src="{{ asset('storage/' . $cover) }}" class="card-img-top unit-cover" style="height:160px;object-fit:cover;" alt="{{ $mess->nama }}" loading="lazy">
                                             @else
-                                                <div class="bg-light d-flex align-items-center justify-content-center" style="height:160px;">
+                                                <div class="bg-light d-flex align-items-center justify-content-center unit-cover" style="height:160px;">
                                                     <i class="ti ti-building text-secondary" style="font-size:2.5rem;"></i>
                                                 </div>
                                             @endif
@@ -103,7 +103,8 @@
 
 <style>
     .mess-pilih-card { cursor: pointer; transition: box-shadow .15s ease, border-color .15s ease; }
-    .mess-pilih-card:hover { box-shadow: 0 0 0 2px var(--bs-primary); }
+    .mess-pilih-card:hover,
+    .mess-pilih-card:focus-visible { box-shadow: 0 0 0 2px var(--bs-primary); }
     .fasilitas-hover {
         position: absolute;
         inset: 0;
@@ -115,5 +116,20 @@
         transition: opacity .15s ease;
     }
     .mess-pilih-card:hover .fasilitas-hover { opacity: 1; }
+
+    /* Di HP/tablet gak ada hover sama sekali - kalau dibiarkan, daftar fasilitas
+       jadi mustahil dilihat (kartunya tombol submit, sekali disentuh langsung
+       kepilih). Jadi overlay-nya diturunkan jadi blok biasa di bawah foto. */
+    @media (hover: none) {
+        .fasilitas-hover {
+            position: static;
+            opacity: 1;
+            pointer-events: auto;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+        }
+        .fasilitas-hover .text-white { color: #475569 !important; }
+        .fasilitas-hover .badge.bg-white { border: 1px solid #e2e8f0; }
+    }
 </style>
 @endsection

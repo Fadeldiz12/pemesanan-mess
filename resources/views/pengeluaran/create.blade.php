@@ -73,7 +73,7 @@
                 </div>
             </div>
 
-            <div class="mt-4 d-flex gap-2">
+            <div class="mt-4 d-flex gap-2 toolbar-actions">
                 <button type="submit" class="btn btn-primary"><i class="ti ti-device-floppy me-1"></i>Simpan</button>
                 <a href="{{ route('pengeluaran.index') }}" class="btn btn-outline-secondary">Batal</a>
             </div>

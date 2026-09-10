@@ -3,29 +3,29 @@
 <form class="card mb-3">
     <div class="card-body p-4">
         <div class="row g-2 align-items-end">
-            <div class="col-md-2">
+            <div class="col-6 col-md-4 col-lg-2">
                 <label class="form-label">Tanggal</label>
                 <input type="date" name="date" class="form-control" value="{{ request('date') }}">
             </div>
             @if($canSeeAll)
-                <div class="col-md-2">
+                <div class="col-6 col-md-4 col-lg-2">
                     <label class="form-label">Username</label>
                     <input name="username" class="form-control" placeholder="Username" value="{{ request('username') }}">
                 </div>
-                <div class="col-md-2">
+                <div class="col-6 col-md-4 col-lg-2">
                     <label class="form-label">Role</label>
                     <input name="role" class="form-control" placeholder="Role" value="{{ request('role') }}">
                 </div>
             @endif
-            <div class="col-md-2">
+            <div class="col-6 col-md-4 col-lg-2">
                 <label class="form-label">Aksi</label>
                 <input name="action" class="form-control" placeholder="Aksi" value="{{ request('action') }}">
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-md-4 col-lg-2">
                 <label class="form-label">Modul</label>
                 <input name="module" class="form-control" placeholder="Modul" value="{{ request('module') }}">
             </div>
-            <div class="col-md-2">
+            <div class="col-12 col-md-4 col-lg-2">
                 <button class="btn btn-primary w-100"><i class="ti ti-filter me-1"></i>Filter</button>
             </div>
         </div>
@@ -76,7 +76,7 @@
     </div>
 </div>
 
-<div class="mt-3 d-flex align-items-center gap-2">
+<div class="mt-3 d-flex align-items-center gap-2 flex-wrap">
     @if($logs->onFirstPage())
         <button class="btn btn-sm btn-light" disabled>Sebelumnya</button>
     @else
@@ -106,7 +106,9 @@
 
     @if($isJson)
         <div class="modal fade" id="detailLog{{ $log->id }}" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-lg">
+            {{-- modal-fullscreen-sm-down: tabel perbandingan 3 kolom di dalamnya
+                 butuh selebar mungkin waktu dibuka dari HP. --}}
+            <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Detail Perubahan Data ({{ $log->log_code }})</h5>

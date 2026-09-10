@@ -45,8 +45,10 @@
                 @forelse($bungalows as $bungalow)
                     <tr>
                         <td class="toggle-cell" data-label="Nama Bungalow">
-                            <span class="fw-semibold">{{ $bungalow->nama }}</span>
-                            <i class="ti ti-chevron-down toggle-icon d-lg-none"></i>
+                            <div class="d-flex align-items-center">
+                                <span class="fw-semibold">{{ $bungalow->nama }}</span>
+                                <i class="ti ti-chevron-down toggle-icon d-md-none ms-2"></i>
+                            </div>
                         </td>
                         <td class="detail-data" data-label="Alamat">{{ $bungalow->alamat }}</td>
                         <td data-label="Kapasitas">{{ $bungalow->kapasitas }} orang</td>

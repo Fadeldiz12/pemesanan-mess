@@ -3,7 +3,7 @@
 @section('title', 'Beri Rating - PTPN 1')
 
 @section('content')
-<div class="d-flex align-items-center justify-content-center py-5 px-3" style="min-height:100vh;">
+<div class="d-flex align-items-center justify-content-center px-3 screen-center">
     <div class="card border-0 shadow-sm" style="max-width: 480px; width: 100%;">
         <div class="card-body p-4 p-md-5">
             <div class="text-center mb-4">

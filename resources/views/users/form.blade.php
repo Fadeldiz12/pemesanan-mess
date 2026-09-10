@@ -16,7 +16,7 @@
     <div class="col-md-4 mb-3"><label class="form-label">Status</label><select name="status" class="form-select">@foreach(['Aktif','Tidak Aktif'] as $s)<option @selected(old('status',$user->status)===$s)>{{ $s }}</option>@endforeach</select></div>
     <div class="col-md-4 mb-3 d-flex align-items-end"><div class="form-check"><input class="form-check-input" id="forceChange" type="checkbox" name="force_change_password" value="1" @checked(old('force_change_password',$user->force_change_password ?? true))><label class="form-check-label" for="forceChange">Paksa ganti password</label></div></div>
 </div>
-<div class="d-flex gap-2">
+<div class="d-flex gap-2 toolbar-actions">
     <button class="btn btn-primary"><i class="ti ti-device-floppy me-1"></i>Simpan</button>
     <a href="{{ route('users.index') }}" class="btn btn-secondary">Kembali</a>
 </div>

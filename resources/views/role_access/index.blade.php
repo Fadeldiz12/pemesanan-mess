@@ -10,7 +10,7 @@
         </div>
 
         <form method="get" action="{{ route('role-access.index') }}" class="row g-3 align-items-end mb-3">
-            <div class="col-md-4">
+            <div class="col-12 col-md-4">
                 <label class="form-label">Pilih Role</label>
                 <select name="role" class="form-select" onchange="this.form.submit()">
                     @foreach($roles as $role)
@@ -18,7 +18,7 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-md-4">
+            <div class="col-12 col-md-4">
                 <label class="form-label">Cari Menu</label>
                 <input id="menuSearch" class="form-control" placeholder="Cari menu...">
             </div>
@@ -28,15 +28,15 @@
             <div class="card-body">
                 <form method="post" action="{{ route('role-access.roles.store') }}" class="row g-3 align-items-end">
                     @csrf
-                    <div class="col-md-3">
+                    <div class="col-12 col-md-3">
                         <label class="form-label">Nama Role Baru</label>
                         <input name="name" class="form-control" placeholder="Contoh: Manager Pool" required>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-12 col-md-4">
                         <label class="form-label">Keterangan</label>
                         <input name="description" class="form-control" placeholder="Opsional">
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-12 col-md-3">
                         <label class="form-label">Copy Akses Dari</label>
                         <select name="copy_from" class="form-select">
                             <option value="">Role kosong</option>
@@ -45,7 +45,7 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-12 col-md-2">
                         <button class="btn btn-outline-primary w-100"><i class="ti ti-plus me-1"></i>Tambah Role</button>
                     </div>
                 </form>
@@ -56,7 +56,7 @@
             @csrf
             <input type="hidden" name="role" value="{{ $selectedRole }}">
             <div class="row g-3 align-items-end mb-3">
-                <div class="col-md-4">
+                <div class="col-12 col-md-4">
                     <label class="form-label">Copy dari Role</label>
                     <select name="copy_from" class="form-select">
                         <option value="">Tidak copy</option>
@@ -68,7 +68,7 @@
                     </select>
                     <div class="form-text">Jika dipilih, tombol Simpan akan menyalin seluruh akses dari role tersebut.</div>
                 </div>
-                <div class="col-md-4 ms-auto text-md-end">
+                <div class="col-12 col-md-4 ms-auto text-md-end">
                     @if($canDeleteSelectedRole)
                         @if($selectedRoleModel)
                             <button class="btn btn-outline-danger" type="submit" form="deleteRoleForm" onclick="return confirm('Hapus role {{ $selectedRole }}?')">
@@ -81,11 +81,15 @@
                 </div>
             </div>
 
+            {{-- Matriks menu x aksi ini gak masuk akal dijadiin kartu - yang mau
+                 dibandingkan justru antar kolomnya. Jadi di HP tetap tabel yang
+                 digeser ke samping, tapi kolom "Menu" dibekukan (table-sticky-first)
+                 supaya gak lupa lagi ngatur baris yang mana. --}}
             <div class="table-responsive">
-                <table class="table table-hover align-middle" id="accessTable">
+                <table class="table table-hover align-middle table-sticky-first" id="accessTable">
                     <thead class="table-light">
                         <tr>
-                            <th style="min-width:240px;">Menu</th>
+                            <th class="access-menu-col">Menu</th>
                             @foreach($allActions as $action)
                                 <th class="text-center text-capitalize">{{ $action }}</th>
                             @endforeach
@@ -119,7 +123,7 @@
                 </table>
             </div>
 
-            <div class="d-flex gap-2 mt-3">
+            <div class="d-flex gap-2 mt-3 toolbar-actions">
                 <button class="btn btn-primary"><i class="ti ti-device-floppy me-1"></i>Simpan Akses</button>
                 <a href="{{ route('dashboard') }}" class="btn btn-secondary">Kembali</a>
             </div>
