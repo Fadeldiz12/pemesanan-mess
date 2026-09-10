@@ -6,7 +6,9 @@
     @else
         <div class="table-responsive">
             <table class="table table-sm table-bordered align-middle mb-0">
-                <thead class="table-light"><tr><th>Jabatan</th><th style="width:240px">Harga (Rp)</th></tr></thead>
+                {{-- Lebar kolom harga dipatok cuma dari sm ke atas; di HP 240px
+                     bakal ngedesak nama jabatannya sampai kepotong. --}}
+                <thead class="table-light"><tr><th>Jabatan</th><th class="harga-col">Harga (Rp)</th></tr></thead>
                 <tbody>
                 @foreach($jabatansForPricing as $j)
                     <tr>

@@ -52,7 +52,9 @@
     </div>
 
     <div class="table-responsive">
-        <table class="table mb-0 table-hover">
+        {{-- table-accordion + data-label: di bawah md tiap baris berubah jadi kartu
+             yang bisa dibuka-tutup (lihat public/css/mobile.css). --}}
+        <table class="table mb-0 table-hover table-accordion">
             <thead class="table-light">
                 <tr>
                     <th>Nama Kamar</th>
@@ -65,19 +67,26 @@
             <tbody>
                 @forelse($mess->kamars as $kamar)
                     <tr>
-                        <td class="fw-semibold">{{ $kamar->nama_kamar }}</td>
-                        <td>{{ $kamar->kapasitas }} orang</td>
-                        <td>{{ $kamar->minimum_jabatan }}</td>
-                        <td>
+                        <td class="toggle-cell fw-semibold" data-label="Nama Kamar">
+                            <div class="d-flex align-items-center">
+                                <span>{{ $kamar->nama_kamar }}</span>
+                                <i class="ti ti-chevron-down toggle-icon d-md-none ms-2"></i>
+                            </div>
+                        </td>
+                        <td class="detail-data" data-label="Kapasitas">{{ $kamar->kapasitas }} orang</td>
+                        <td class="detail-data" data-label="Minimum Jabatan">{{ $kamar->minimum_jabatan }}</td>
+                        <td data-label="Status">
                             <span class="badge {{ $kamar->status_ketersediaan === 'Aktif' ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">
                                 {{ $kamar->status_ketersediaan }}
                             </span>
                         </td>
-                        <td class="text-center">
-                            <a href="{{ route('kamars.show', $kamar) }}" class="btn btn-light btn-sm" title="Detail"><i class="ti ti-eye"></i></a>
-                            @if($canUpdate)
-                                <a href="{{ route('kamars.edit', $kamar) }}" class="btn btn-light btn-sm" title="Edit"><i class="ti ti-edit"></i></a>
-                            @endif
+                        <td class="action-data text-center" data-label="Aksi">
+                            <div class="d-flex gap-1 justify-content-center">
+                                <a href="{{ route('kamars.show', $kamar) }}" class="btn btn-light btn-sm" title="Detail"><i class="ti ti-eye"></i></a>
+                                @if($canUpdate)
+                                    <a href="{{ route('kamars.edit', $kamar) }}" class="btn btn-light btn-sm" title="Edit"><i class="ti ti-edit"></i></a>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                 @empty

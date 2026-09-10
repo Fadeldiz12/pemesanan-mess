@@ -5,7 +5,7 @@
     $canUpdate = \App\Support\AccessMatrix::can('departments', 'update');
     $canDelete = \App\Support\AccessMatrix::can('departments', 'delete');
 @endphp
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-start align-items-sm-center flex-wrap gap-2 mb-3">
     <div></div>
     @if($canCreate)<a class="btn btn-primary" href="{{ route('departments.create') }}"><i class="ti ti-plus me-1"></i>Tambah Bagian</a>@endif
 </div>

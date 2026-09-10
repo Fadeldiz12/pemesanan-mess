@@ -9,16 +9,18 @@
 {{-- 1. Form Filter --}}
 <form class="card border-0 shadow-sm mb-4">
     <div class="card-body p-4">
+        {{-- col-6 di HP: dua filter sebaris masih kebaca, kalau dipaksa 6 kolom
+             (col-md-2) di layar 400px semuanya jadi gepeng. --}}
         <div class="row g-2 align-items-end">
-            <div class="col-md-2">
+            <div class="col-6 col-md-4 col-lg-2">
                 <label class="form-label small fw-medium text-muted">Tanggal Awal (Check-in)</label>
                 <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-md-4 col-lg-2">
                 <label class="form-label small fw-medium text-muted">Tanggal Akhir (Check-out)</label>
                 <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-md-4 col-lg-2">
                 <label class="form-label small fw-medium text-muted">Tipe Unit</label>
                 <select name="unit_type" class="form-select">
                     <option value="">Semua Tipe Unit</option>
@@ -26,11 +28,11 @@
                     <option value="bungalow" @selected(request('unit_type') == 'bungalow')>Bungalow</option>
                 </select>
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-md-4 col-lg-2">
                 <label class="form-label small fw-medium text-muted">Bagian Pemohon</label>
                 <input name="peminjam_department" class="form-control" placeholder="Contoh: Akuntansi..." value="{{ request('peminjam_department') }}">
             </div>
-            <div class="col-md-2">
+            <div class="col-12 col-md-4 col-lg-2">
                 <label class="form-label small fw-medium text-muted">Status Peminjaman</label>
                 <select name="status" class="form-select">
                     <option value="">Semua Status</option>
@@ -39,7 +41,7 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-md-2">
+            <div class="col-12 col-md-4 col-lg-2">
                 <button type="submit" class="btn btn-primary w-100"><i class="ti ti-filter me-1"></i>Filter</button>
             </div>
         </div>
@@ -84,7 +86,10 @@
         <p class="text-secondary small mb-0">Periode {{ request('date_from') ? \Carbon\Carbon::parse(request('date_from'))->format('d M Y') : now()->startOfMonth()->format('d M Y') }} - {{ request('date_to') ? \Carbon\Carbon::parse(request('date_to'))->format('d M Y') : now()->endOfMonth()->format('d M Y') }}</p>
     </div>
     <div class="table-responsive">
-        <table class="table mb-0 table-sm">
+        {{-- Tabel ini tetap tabel di HP (bukan kartu) karena isinya angka
+             berbanding-bandingan. table-sticky-first: kolom nama unit dibekukan
+             biar gak hilang waktu tabelnya digeser ke samping. --}}
+        <table class="table mb-0 table-sm table-sticky-first">
             <thead class="table-light">
                 <tr>
                     <th>Unit</th>
@@ -117,13 +122,13 @@
 </div>
 
 {{-- 3. Tombol Export (Mengarah ke route PeminjamanMessController yg sudah Anda miliki) --}}
-<div class="d-flex gap-2 mb-3">
+<div class="d-flex gap-2 mb-3 toolbar-actions">
     {{-- Ubah 'peminjaman.exportExcel' sesuai dengan penamaan route di web.php Anda --}}
     <a class="btn btn-success shadow-sm" href="{{ route('peminjaman.exportExcel', request()->query()) }}">
-        <i class="ti ti-file-spreadsheet me-1"></i>Export Laporan ke Excel
+        <i class="ti ti-file-spreadsheet me-1"></i>Export <span class="d-none d-sm-inline">Laporan </span>ke Excel
     </a>
     <a class="btn btn-danger shadow-sm" href="{{ route('peminjaman.exportPdf', request()->query()) }}">
-        <i class="ti ti-file-type-pdf me-1"></i>Export Laporan ke PDF
+        <i class="ti ti-file-type-pdf me-1"></i>Export <span class="d-none d-sm-inline">Laporan </span>ke PDF
     </a>
 </div>
 
@@ -160,7 +165,9 @@
                 </td>
                 <td class="detail-data" data-label="Check-in">{{ \Carbon\Carbon::parse($b->waktu_mulai)->format('d/m/Y H:i') }}</td>
                 <td class="detail-data" data-label="Check-out">{{ \Carbon\Carbon::parse($b->waktu_selesai)->format('d/m/Y H:i') }}</td>
-                <td class="detail-data text-truncate" style="max-width: 150px;" data-label="Keperluan" title="{{ $b->keperluan }}">
+                {{-- cell-clamp: dipotong pakai ellipsis di desktop, tapi ditampilkan
+                     penuh waktu barisnya sudah jadi kartu di HP. --}}
+                <td class="detail-data cell-clamp" data-label="Keperluan" title="{{ $b->keperluan }}">
                     {{ $b->keperluan }}
                 </td>
                 <td class="detail-data" data-label="Status">

@@ -63,7 +63,7 @@
 
                     <div class="mb-3">
                         <label class="form-label d-block">Jenis Unit</label>
-                        <div class="btn-group" role="group">
+                        <div class="btn-group btn-group-responsive" role="group">
                             <input type="radio" class="btn-check" name="unit_type" id="jenis_kamar" value="kamar" @checked(old('unit_type', request('unit_type', 'kamar')) === 'kamar')>
                             <label class="btn btn-outline-primary" for="jenis_kamar"><i class="ti ti-bed me-1"></i>Kamar Mess</label>
 
@@ -74,12 +74,14 @@
 
                     <div class="row g-3 mb-3">
                         <div class="col-12 col-md-6">
-                            <label for="waktu_mulai" class="form-label">Tanggal Masuk</label>
-                            <input type="datetime-local" name="waktu_mulai" id="waktu_mulai" class="form-control" value="{{ old('waktu_mulai') }}" required>
+                            <label for="tanggal_masuk" class="form-label">Tanggal Masuk</label>
+                            <input type="date" name="tanggal_masuk" id="tanggal_masuk" class="form-control" value="{{ old('tanggal_masuk') }}" min="{{ now()->format('Y-m-d') }}" required>
+                            <div class="form-text">Check-in jam 12:00.</div>
                         </div>
                         <div class="col-12 col-md-6">
-                            <label for="waktu_selesai" class="form-label">Tanggal Keluar</label>
-                            <input type="datetime-local" name="waktu_selesai" id="waktu_selesai" class="form-control" value="{{ old('waktu_selesai') }}" required>
+                            <label for="tanggal_keluar" class="form-label">Tanggal Keluar</label>
+                            <input type="date" name="tanggal_keluar" id="tanggal_keluar" class="form-control" value="{{ old('tanggal_keluar') }}" min="{{ now()->format('Y-m-d') }}" required>
+                            <div class="form-text">Check-out jam 10:00.</div>
                         </div>
                     </div>
 
@@ -93,9 +95,11 @@
                         <textarea name="note" id="note" rows="2" class="form-control">{{ old('note') }}</textarea>
                     </div>
 
-                    <div class="d-flex justify-content-end gap-2 border-top pt-3">
-                        <a href="{{ route('peminjaman-mess.index') }}" class="btn btn-light">Batal</a>
-                        <button type="submit" class="btn btn-primary"><i class="ti ti-arrow-right me-1"></i>Lanjut Pilih Unit</button>
+                    {{-- Di HP tombolnya ditumpuk & memenuhi lebar (aksi utama di atas),
+                         dari sm ke atas baru berjajar di kanan seperti biasa. --}}
+                    <div class="d-grid d-sm-flex justify-content-sm-end gap-2 border-top pt-3">
+                        <button type="submit" class="btn btn-primary order-sm-2"><i class="ti ti-arrow-right me-1"></i>Lanjut Pilih Unit</button>
+                        <a href="{{ route('peminjaman-mess.index') }}" class="btn btn-light order-sm-1">Batal</a>
                     </div>
                 </form>
             </div>

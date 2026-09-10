@@ -11,14 +11,14 @@
     @if($allPhotos->isNotEmpty())
         <div class="row g-1 p-1">
             <div class="col-12 col-md-8">
-                <img src="{{ asset('storage/' . $allPhotos->first()) }}" class="rounded" style="width:100%; height:320px; object-fit:cover;" alt="{{ $mess->nama }}">
+                <img src="{{ asset('storage/' . $allPhotos->first()) }}" class="rounded katalog-hero" style="width:100%; height:320px; object-fit:cover;" alt="{{ $mess->nama }}">
             </div>
             @if($allPhotos->count() > 1)
                 <div class="col-12 col-md-4">
                     <div class="row g-1">
                         @foreach($allPhotos->slice(1, 4) as $photo)
                             <div class="col-6 col-md-12">
-                                <img src="{{ asset('storage/' . $photo) }}" class="rounded" style="width:100%; height:154px; object-fit:cover;" alt="">
+                                <img src="{{ asset('storage/' . $photo) }}" class="rounded katalog-hero-thumb" style="width:100%; height:154px; object-fit:cover;" alt="" loading="lazy">
                             </div>
                         @endforeach
                     </div>
@@ -34,7 +34,7 @@
                 <p class="text-secondary mb-0"><i class="ti ti-map-pin me-1"></i>{{ $mess->alamat }}</p>
             </div>
             @if($ratingCount > 0)
-                <div class="text-end">
+                <div class="text-start text-sm-end">
                     <div class="fs-5 fw-bold text-warning"><i class="ti ti-star-filled"></i> {{ number_format($ratingAverage, 1) }}</div>
                     <div class="small text-secondary">{{ $ratingCount }} ulasan</div>
                 </div>
@@ -64,18 +64,23 @@
             $kamarCover = $kamar->photos->first()->path ?? $kamar->foto;
         @endphp
         <div class="col-12 col-md-6">
-            <div class="card border-0 shadow-sm h-100">
+            {{-- overflow-hidden: sudut kartunya tetap rapi tanpa perlu rounded-start,
+                 yang posisinya berubah begitu foto pindah ke atas di HP. --}}
+            <div class="card border-0 shadow-sm h-100 overflow-hidden">
                 <div class="row g-0 h-100">
-                    <div class="col-4">
+                    {{-- Di layar < 576px foto jadi banner di atas: kalau dipaksa
+                         bersebelahan, kolom teksnya cuma kebagian ~240px dan
+                         judul/badge/tombolnya numpuk. --}}
+                    <div class="col-12 col-sm-4">
                         @if($kamarCover)
-                            <img src="{{ asset('storage/' . $kamarCover) }}" class="h-100 w-100 rounded-start" style="object-fit:cover; min-height:140px;" alt="{{ $kamar->nama_kamar }}">
+                            <img src="{{ asset('storage/' . $kamarCover) }}" class="w-100 katalog-thumb" style="object-fit:cover;" alt="{{ $kamar->nama_kamar }}" loading="lazy">
                         @else
-                            <div class="bg-light h-100 d-flex align-items-center justify-content-center rounded-start">
+                            <div class="bg-light d-flex align-items-center justify-content-center katalog-thumb">
                                 <i class="ti ti-door text-secondary fs-2"></i>
                             </div>
                         @endif
                     </div>
-                    <div class="col-8">
+                    <div class="col-12 col-sm-8">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-start">
                                 <h3 class="fs-6 fw-bold mb-1">{{ $kamar->nama_kamar }}</h3>

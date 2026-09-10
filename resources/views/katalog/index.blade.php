@@ -8,7 +8,7 @@
     Jelajahi unit Mess dan Bungalow yang tersedia sebelum membuat pengajuan peminjaman.
 </div>
 
-<div class="btn-group mb-4" role="group">
+<div class="btn-group btn-group-responsive mb-4" role="group">
     <a href="{{ route('katalog.index') }}" class="btn btn-sm {{ !$tipe ? 'btn-primary' : 'btn-outline-primary' }}">Semua</a>
     <a href="{{ route('katalog.index', ['tipe' => 'mess']) }}" class="btn btn-sm {{ $tipe === 'mess' ? 'btn-primary' : 'btn-outline-primary' }}">Mess</a>
     <a href="{{ route('katalog.index', ['tipe' => 'bungalow']) }}" class="btn btn-sm {{ $tipe === 'bungalow' ? 'btn-primary' : 'btn-outline-primary' }}">Bungalow</a>
@@ -23,9 +23,9 @@
                     <div class="position-relative">
                         @php $cover = $mess->photos->first()->path ?? $mess->foto; @endphp
                         @if($cover)
-                            <img src="{{ asset('storage/' . $cover) }}" class="card-img-top" style="height:180px;object-fit:cover;" alt="{{ $mess->nama }}">
+                            <img src="{{ asset('storage/' . $cover) }}" class="card-img-top unit-cover" style="height:180px;object-fit:cover;" alt="{{ $mess->nama }}" loading="lazy">
                         @else
-                            <div class="bg-light d-flex align-items-center justify-content-center" style="height:180px;">
+                            <div class="bg-light d-flex align-items-center justify-content-center unit-cover" style="height:180px;">
                                 <i class="ti ti-building text-secondary" style="font-size:2.5rem;"></i>
                             </div>
                         @endif
@@ -56,9 +56,9 @@
                     <div class="position-relative">
                         @php $cover = $bungalow->photos->first()->path ?? $bungalow->foto; @endphp
                         @if($cover)
-                            <img src="{{ asset('storage/' . $cover) }}" class="card-img-top" style="height:180px;object-fit:cover;" alt="{{ $bungalow->nama }}">
+                            <img src="{{ asset('storage/' . $cover) }}" class="card-img-top unit-cover" style="height:180px;object-fit:cover;" alt="{{ $bungalow->nama }}" loading="lazy">
                         @else
-                            <div class="bg-light d-flex align-items-center justify-content-center" style="height:180px;">
+                            <div class="bg-light d-flex align-items-center justify-content-center unit-cover" style="height:180px;">
                                 <i class="ti ti-home text-secondary" style="font-size:2.5rem;"></i>
                             </div>
                         @endif

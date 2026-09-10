@@ -13,7 +13,7 @@
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body p-4">
         <form method="get" action="{{ route('pengeluaran.index') }}" class="row g-2 align-items-end">
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <label class="form-label small fw-medium text-muted">Unit</label>
                 <select name="unit_type" class="form-select">
                     <option value="">Semua Unit</option>
@@ -21,11 +21,11 @@
                     <option value="bungalow" @selected(($filters['unit_type'] ?? null) === 'bungalow')>Bungalow</option>
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <label class="form-label small fw-medium text-muted">Bulan</label>
                 <input type="month" name="bulan" class="form-control" value="{{ $filters['bulan'] ?? '' }}">
             </div>
-            <div class="col-md-3">
+            <div class="col-12 col-md-3">
                 <label class="form-label small fw-medium text-muted">Kategori</label>
                 <select name="kategori" class="form-select">
                     <option value="">Semua Kategori</option>
@@ -34,7 +34,7 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-md-3 d-flex gap-2">
+            <div class="col-12 col-md-3 d-flex gap-2">
                 <button type="submit" class="btn btn-primary flex-fill"><i class="ti ti-filter me-1"></i>Filter</button>
                 <a href="{{ route('pengeluaran.index') }}" class="btn btn-outline-secondary">Reset</a>
             </div>
@@ -42,7 +42,7 @@
     </div>
 </div>
 
-<div class="d-flex gap-2 mb-3">
+<div class="d-flex gap-2 mb-3 toolbar-actions">
     <a class="btn btn-success shadow-sm btn-sm" href="{{ route('pengeluaran.exportExcel', request()->query()) }}">
         <i class="ti ti-file-spreadsheet me-1"></i>Export ke Excel
     </a>
@@ -52,13 +52,13 @@
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-md-4">
+    <div class="col-12 col-md-4">
         <div class="card p-3 bg-danger bg-opacity-10 border border-danger border-opacity-25 rounded-2 h-100">
             <small class="text-danger fw-medium d-block mb-1">Total Pengeluaran (hasil filter)</small>
             <h4 class="mb-0 fw-bold text-dark">Rp {{ number_format($total, 0, ',', '.') }}</h4>
         </div>
     </div>
-    <div class="col-md-8">
+    <div class="col-12 col-md-8">
         <div class="card p-3 rounded-2 h-100">
             <small class="fw-medium d-block mb-2 text-secondary">Rekap per Kategori</small>
             @if($perKategori->isEmpty())
@@ -105,8 +105,10 @@
                 @forelse($pengeluarans as $item)
                     <tr>
                         <td class="toggle-cell" data-label="Kode">
-                            <span class="fw-semibold">{{ $item->expense_code }}</span>
-                            <i class="ti ti-chevron-down toggle-icon d-lg-none"></i>
+                            <div class="d-flex align-items-center">
+                                <span class="fw-semibold">{{ $item->expense_code }}</span>
+                                <i class="ti ti-chevron-down toggle-icon d-md-none ms-2"></i>
+                            </div>
                         </td>
                         <td class="detail-data" data-label="Tanggal">{{ $item->tanggal->format('d/m/Y') }}</td>
                         <td class="detail-data" data-label="Unit">
@@ -126,7 +128,10 @@
                         <td class="detail-data" data-label="Kategori">
                             <span class="badge bg-secondary-subtle text-secondary">{{ $item->kategori }}</span>
                         </td>
-                        <td class="detail-data" data-label="Jumlah">Rp {{ number_format($item->jumlah, 0, ',', '.') }}</td>
+                        {{-- Sengaja tanpa .detail-data: nominal adalah info paling
+                             penting di daftar ini, jadi tetap kelihatan di HP walau
+                             kartunya belum dibuka. --}}
+                        <td data-label="Jumlah" class="fw-semibold">Rp {{ number_format($item->jumlah, 0, ',', '.') }}</td>
                         <td class="detail-data" data-label="Diinput Oleh">{{ $item->creator?->name ?? '-' }}</td>
                         <td class="action-data" data-label="Aksi">
                             <div class="d-flex gap-1 justify-content-center">

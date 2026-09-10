@@ -1,0 +1,728 @@
+/* =============================================================================
+   mobile.css - lapisan responsive Aplikasi Peminjaman Mess PTPN 1
+
+   Template `inapp` (Bootstrap 5) yang dipakai di public/inapp/assets/css/main.css
+   sudah punya breakpoint bawaan Bootstrap, tapi shell aplikasinya (topbar fixed +
+   sidebar drawer) dan tabel-tabel lebar di sini masih belum enak dipakai di HP.
+   File ini yang nambalnya, dan HARUS dimuat SETELAH main.css supaya bisa nimpa.
+
+   Isinya:
+     1. Dasar & safe-area
+     2. Topbar
+     3. Sidebar (drawer HP)
+     4. Area konten
+     5. Tabel -> kartu accordion
+     6. Form & input
+     7. Tombol, toolbar, pagination
+     8. Modal
+     9. Penyesuaian per halaman
+   ============================================================================= */
+
+:root {
+    --app-topbar-height: 60px;
+    --app-sidebar-width: 240px;
+}
+
+/* -----------------------------------------------------------------------------
+   1. Dasar & safe-area
+   -------------------------------------------------------------------------- */
+
+/* CATATAN: JANGAN pasang `body { overflow-x: hidden }` sebagai jaring pengaman
+   di sini. Overflow viewport diambil dari <body> (karena <html>-nya visible),
+   dan begitu satu sumbu di-hidden, sumbu satunya ikut jadi `auto` - browser
+   desktop lalu memesan scrollbar klasik ~8px yang justru bikin overflow baru.
+   Elemen yang meluber lebih baik dibenerin langsung. */
+
+/* Waktu drawer sidebar kebuka, konten di belakangnya jangan ikut ke-scroll.
+   Class ini dipasang/dilepas dari JS di layouts/app.blade.php. */
+body.sidebar-open {
+    overflow: hidden;
+    touch-action: none;
+}
+
+/* Kotak abu-abu waktu di-tap di Android/iOS - ganti jadi feedback yang lebih
+   halus lewat :active masing-masing komponen. */
+@media (hover: none) {
+    a,
+    button,
+    .btn,
+    .nav-link,
+    [role="button"] {
+        -webkit-tap-highlight-color: rgba(230, 98, 57, .12);
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   2. Topbar
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 991.98px) {
+    .topbar {
+        padding-left: max(.75rem, env(safe-area-inset-left));
+        padding-right: max(.75rem, env(safe-area-inset-right));
+        gap: .5rem;
+    }
+
+    /* Tombol hamburger & avatar: minimal 44px biar gampang ditekan jempol. */
+    .topbar .btn-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+    }
+
+    .topbar .btn-icon .ti {
+        font-size: 1.25rem;
+    }
+}
+
+/* Judul aplikasi ringkas yang cuma muncul di HP (lihat partials/navbar). */
+.topbar .topbar-brand {
+    min-width: 0;
+    line-height: 1.2;
+}
+
+.topbar .topbar-brand-title {
+    font-size: .9375rem;
+    font-weight: 600;
+    color: #262626;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* -----------------------------------------------------------------------------
+   3. Sidebar (drawer HP)
+   -------------------------------------------------------------------------- */
+
+/* 100dvh: tinggi viewport yang ikut nyusut/melar waktu address bar Chrome &
+   Safari muncul-hilang. Dengan 100vh biasa, bagian bawah menu (Logout) ketutup
+   address bar dan gak bisa dijangkau sama sekali. */
+.sidebar {
+    height: 100dvh;
+}
+
+/* Yang di-scroll cuma daftar menunya, bukan seluruh sidebar - biar logo di
+   .logo-area (position:absolute, top:0) tetap nempel di atas.
+
+   flex-wrap: nowrap PENTING. `.nav` bawaan Bootstrap itu flex container dengan
+   flex-wrap: wrap, dan `.flex-column` bikin arahnya jadi kolom. Begitu
+   tingginya dibatasi max-height, menu yang gak muat malah PINDAH KE KOLOM
+   BERIKUTNYA - keluar dari lebar sidebar alias hilang, bukan bisa di-scroll.
+   Item-itemnya juga dikunci flex: 0 0 auto supaya tingginya gak digencet. */
+.sidebar > .nav {
+    max-height: calc(100dvh - var(--app-topbar-height));
+    flex-wrap: nowrap;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+}
+
+.sidebar > .nav > li {
+    flex: 0 0 auto;
+}
+
+/* Tombol tutup drawer - cuma relevan di layar kecil. */
+.sidebar .sidebar-close {
+    display: none;
+}
+
+@media (max-width: 991.98px) {
+    .sidebar {
+        width: min(var(--app-sidebar-width), 82vw);
+        left: calc(-1 * min(var(--app-sidebar-width), 82vw));
+        padding-left: env(safe-area-inset-left);
+    }
+
+    .sidebar.mobile-show {
+        left: 0;
+        box-shadow: 0 0 40px rgba(0, 0, 0, .18);
+    }
+
+    .sidebar .sidebar-close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: auto;
+        margin-right: .75rem;
+        width: 2.25rem;
+        height: 2.25rem;
+        border: 0;
+        border-radius: .5rem;
+        background: transparent;
+        color: #525252;
+        font-size: 1.25rem;
+    }
+
+    .sidebar .sidebar-close:active {
+        background: #f5f5f5;
+    }
+
+    /* Target sentuh menu diperbesar - 8px terlalu tipis buat jempol. */
+    .sidebar .nav-link {
+        padding: 11px 12px;
+        font-size: .9375rem;
+    }
+
+    .submenu .nav-link {
+        padding: .55rem .85rem;
+        font-size: .9375rem;
+    }
+}
+
+/* Batas breakpoint template dan Bootstrap beda tipis: main.css nyembunyiin
+   sidebar sampai `max-width: 992px` (inklusif), sedangkan #mobileBtn pakai
+   `.d-lg-none` yang berhenti di 991.98px. Hasilnya, tepat di lebar 992px
+   sidebar-nya kesembunyi TANPA ada tombol buat mbukanya sama sekali. */
+@media (width: 992px) {
+    #mobileBtn {
+        display: inline-flex !important;
+    }
+}
+
+/* Overlay drawer sudah disediakan template, tinggal dipastikan di atas konten
+   tapi di bawah sidebar, plus transisi biar gak kedip. */
+.overlay {
+    transition: opacity .25s ease;
+}
+
+/* -----------------------------------------------------------------------------
+   4. Area konten
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 991.98px) {
+    /* .py-10 bawaan template = 6rem atas & bawah. Di desktop itu yang bikin
+       konten gak ketiban topbar fixed 60px, tapi di HP 96px cuma jadi ruang
+       kosong. Cukup tinggi topbar + sedikit jarak napas. */
+    .content.py-10 {
+        padding-top: calc(var(--app-topbar-height) + 1rem + env(safe-area-inset-top)) !important;
+        padding-bottom: calc(2rem + env(safe-area-inset-bottom)) !important;
+    }
+
+    /* Gutter bawaan template 2.5rem (20px kiri-kanan) - terlalu boros di HP. */
+    .content .container-fluid {
+        --bs-gutter-x: 1.75rem;
+    }
+
+    /* `.row` nyetel --bs-gutter-x-nya SENDIRI (2.5rem, sama kayak container),
+       jadi nilainya gak ikut turun cuma dengan nyetel container. Kalau dibiarkan:
+       padding container udah turun jadi 14px tapi margin negatif row tetap
+       -20px, hasilnya row nyembul ke luar layar di kiri & kanan.
+       Yang disetel ulang cuma row TANPA kelas gutter sendiri (mis. `class="row"`
+       atau `class="row justify-content-center"`); row yang sudah dikasih .g-1
+       sampai .g-4 sengaja dibiarkan pakai nilainya sendiri supaya jarak
+       antarkolom yang memang diatur di view-nya gak berubah. */
+    .content .container-fluid > .row:not(.g-0):not(.g-1):not(.g-2):not(.g-3):not(.g-4):not(.g-5):not([class*="gx-"]) {
+        --bs-gutter-x: 1.75rem;
+    }
+
+    /* Padding kartu ikut dikecilin biar isinya dapat ruang lebih. */
+    .card-body.p-4 {
+        padding: 1rem !important;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .content .container-fluid {
+        --bs-gutter-x: 1.5rem;
+    }
+
+    .content .container-fluid > .row:not(.g-0):not(.g-1):not(.g-2):not(.g-3):not(.g-4):not(.g-5):not([class*="gx-"]) {
+        --bs-gutter-x: 1.5rem;
+    }
+}
+
+/* Blok judul halaman. Judulnya sudah nongol di topbar, jadi di HP versi ini
+   disembunyikan SECARA VISUAL saja (bukan display:none) supaya struktur heading
+   halaman tetap utuh buat screen reader. */
+@media (max-width: 767.98px) {
+    .page-header {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   5. Tabel -> kartu accordion
+   Di bawah md, tiap <tr> berubah jadi kartu: kolom .toggle-cell jadi judul yang
+   bisa di-tap, kolom .detail-data disembunyikan sampai kartunya dibuka, dan
+   kolom .action-data selalu didorong ke bawah.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 767.98px) {
+    /* Sudah jadi kartu, jadi gak perlu lagi geser ke samping. */
+    .table-responsive:has(.table-accordion) {
+        overflow-x: visible;
+    }
+
+    .table-accordion,
+    .table-accordion tbody {
+        display: block !important;
+        width: 100% !important;
+    }
+
+    .table-accordion thead {
+        display: none !important;
+    }
+
+    .table-accordion tbody tr {
+        display: flex !important;
+        flex-direction: column !important;
+        margin-bottom: .875rem !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: .75rem !important;
+        background-color: #fff !important;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, .08) !important;
+        white-space: normal !important;
+        overflow: hidden !important;
+    }
+
+    .table-accordion tbody tr:last-child {
+        margin-bottom: 0 !important;
+    }
+
+    /* Label kiri, nilai kanan. Pakai flex-wrap + margin-right:auto di ::before
+       (bukan justify-content: space-between) supaya sel yang isinya lebih dari
+       satu elemen - misal kolom Jadwal: "mulai" dan "s.d. selesai" - turun ke
+       baris berikutnya waktu kesempitan, bukan saling gencet. */
+    .table-accordion tbody td {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        justify-content: flex-end !important;
+        align-items: flex-start !important;
+        gap: .25rem .75rem !important;
+        padding: .625rem .875rem !important;
+        border: 0 !important;
+        border-bottom: 1px solid #f1f5f9 !important;
+        text-align: right !important;
+        font-size: .875rem !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    .table-accordion tbody td:last-child {
+        border-bottom: none !important;
+    }
+
+    .table-accordion tbody td::before {
+        content: attr(data-label) !important;
+        font-weight: 600 !important;
+        color: #64748b !important;
+        text-align: left !important;
+        flex: 0 0 auto !important;
+        max-width: 45% !important;
+        margin-right: auto !important;
+    }
+
+    /* Baris "belum ada data" pakai colspan - jangan diperlakukan sebagai
+       pasangan label/nilai, cukup satu blok teks di tengah. */
+    .table-accordion tbody td[colspan] {
+        display: block !important;
+        text-align: center !important;
+    }
+
+    .table-accordion tbody td[colspan]::before {
+        content: none !important;
+    }
+
+    /* Judul kartu */
+    .table-accordion tbody td.toggle-cell {
+        background-color: #f8fafc !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+        align-items: center !important;
+        min-height: 3rem !important;
+        font-size: .9375rem !important;
+        cursor: pointer !important;
+        -webkit-user-select: none !important;
+        user-select: none !important;
+    }
+
+    .table-accordion tbody td.toggle-cell::before {
+        color: #0f172a !important;
+    }
+
+    .table-accordion tbody td.toggle-cell:active {
+        background-color: #f1f5f9 !important;
+    }
+
+    .table-accordion tbody td.toggle-cell .toggle-icon {
+        transition: transform .25s ease !important;
+        margin-left: .5rem !important;
+        font-size: 1.125rem !important;
+        color: #e66239 !important;
+    }
+
+    .table-accordion tbody tr.is-expanded td.toggle-cell .toggle-icon {
+        transform: rotate(180deg) !important;
+    }
+
+    /* Detail tambahan - baru muncul setelah kartunya dibuka. */
+    .table-accordion tbody td.detail-data {
+        display: none !important;
+    }
+
+    .table-accordion tbody tr.is-expanded td.detail-data {
+        display: flex !important;
+        animation: appear .25s ease-in-out !important;
+    }
+
+    /* Tombol aksi selalu paling bawah, memenuhi lebar kartu. */
+    .table-accordion tbody td.action-data {
+        order: 99 !important;
+        justify-content: center !important;
+        border-top: 1px dashed #cbd5e1 !important;
+        border-bottom: none !important;
+        margin-top: .25rem !important;
+        padding-top: .75rem !important;
+    }
+
+    .table-accordion tbody td.action-data::before {
+        display: none !important;
+    }
+
+    .table-accordion tbody td.action-data > div {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: .5rem !important;
+        width: 100% !important;
+        justify-content: center !important;
+    }
+
+    /* Badge/teks di dalam sel biar rapi rata kanan mengikuti nilainya. */
+    .table-accordion tbody td > div,
+    .table-accordion tbody td > span {
+        text-align: right;
+    }
+
+    @keyframes appear {
+        from { opacity: 0; transform: translateY(-4px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+}
+
+/* Kolom teks panjang (mis. Keperluan di laporan): dipotong di desktop supaya
+   tabelnya gak melar, tapi ditampilkan penuh begitu barisnya berubah jadi kartu. */
+@media (min-width: 768px) {
+    .cell-clamp {
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+/* Tabel yang memang harus tetap berbentuk tabel (matriks hak akses, rekap
+   okupansi): kolom pertama dibekukan supaya masih ketahuan barisnya apa waktu
+   digeser ke samping. */
+@media (max-width: 767.98px) {
+    .table-sticky-first th:first-child,
+    .table-sticky-first td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background-color: #fff;
+        box-shadow: 1px 0 0 #e5e5e5;
+    }
+
+    .table-sticky-first thead th:first-child,
+    .table-sticky-first tr.table-secondary td:first-child {
+        background-color: #f5f5f5;
+    }
+
+    .table-sticky-first {
+        font-size: .8125rem;
+    }
+}
+
+/* Kolom harga di partials/unit-price-matrix. */
+@media (min-width: 576px) {
+    .harga-col {
+        width: 240px;
+    }
+}
+
+/* Kolom "Menu" di matriks hak akses. */
+.access-menu-col {
+    min-width: 240px;
+}
+
+@media (max-width: 767.98px) {
+    /* Kalau 240px, kolom bekunya makan setengah layar HP. */
+    .access-menu-col {
+        min-width: 9.5rem;
+    }
+
+    /* Tulisan "Aktif" di sebelah switch cuma pengulangan dari posisi switch-nya,
+       sementara tiap kolom aksi jadi ikut melebar. */
+    .access-state {
+        display: none;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   6. Form & input
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 767.98px) {
+    /* Font body template ini .875rem (14px). Di iOS, input dengan font < 16px
+       bikin Safari otomatis nge-zoom tiap kali field difokus dan halamannya jadi
+       melenceng. Dipaksa 16px khusus layar kecil. */
+    .form-control,
+    .form-select,
+    .form-control-sm,
+    .form-select-sm,
+    .input-group-text,
+    textarea.form-control {
+        font-size: 1rem;
+    }
+
+    .form-control,
+    .form-select {
+        min-height: 2.75rem;
+    }
+
+    .form-control-sm,
+    .form-select-sm {
+        min-height: 2.375rem;
+    }
+
+    textarea.form-control {
+        min-height: 5rem;
+    }
+
+    /* Checkbox & switch juga ikut diperbesar. */
+    .form-check-input {
+        width: 1.25rem;
+        height: 1.25rem;
+    }
+
+    .form-switch .form-check-input {
+        width: 2.25rem;
+    }
+
+    .form-label {
+        margin-bottom: .25rem;
+    }
+
+    /* Input group kadang isinya 3 elemen (ikon + field + tombol) dan meluber. */
+    .input-group {
+        flex-wrap: nowrap;
+    }
+
+    .input-group > .form-control {
+        min-width: 0;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   7. Tombol, toolbar, pagination
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 767.98px) {
+    .btn {
+        min-height: 2.5rem;
+    }
+
+    .btn-sm {
+        min-height: 2.125rem;
+    }
+
+    /* Deretan tombol aksi/export: bungkus pakai .toolbar-actions supaya turun
+       baris, bukan meluber keluar layar. */
+    .toolbar-actions {
+        flex-wrap: wrap;
+    }
+
+    .toolbar-actions > .btn,
+    .toolbar-actions > form,
+    .toolbar-actions > form > .btn {
+        flex: 1 1 auto;
+    }
+
+    /* btn-group dua/tiga pilihan (jenis unit, filter katalog) sering lebih lebar
+       dari layar - biarin melar penuh dan bagi rata. */
+    .btn-group-responsive {
+        display: flex;
+        width: 100%;
+    }
+
+    .btn-group-responsive > .btn,
+    .btn-group-responsive > .btn-check + .btn {
+        flex: 1 1 0;
+        padding-inline: .5rem;
+    }
+}
+
+@media (max-width: 575.98px) {
+    /* Pagination Bootstrap gampang meluber kalau halamannya banyak. */
+    .pagination {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: .25rem;
+        --bs-pagination-padding-x: .625rem;
+    }
+
+    .pagination .page-item .page-link {
+        border-radius: .375rem;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   8. Modal
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 575.98px) {
+    /* Footer modal sering isi 2-3 tombol berdampingan. Di HP ditumpuk saja,
+       aksi utama tetap di posisi paling gampang dijangkau (bawah). */
+    .modal-footer {
+        flex-direction: column-reverse;
+        align-items: stretch;
+        gap: .5rem;
+    }
+
+    .modal-footer > *,
+    .modal-footer > div > .btn,
+    .modal-footer > div > form,
+    .modal-footer > div > form > .btn {
+        width: 100%;
+        margin: 0 !important;
+    }
+
+    .modal-footer > div {
+        display: flex;
+        flex-direction: column-reverse;
+        gap: .5rem;
+        width: 100%;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   9. Penyesuaian per halaman
+   -------------------------------------------------------------------------- */
+
+/* Halaman tanpa login (login, rating publik): 100dvh biar kartunya benar-benar
+   ketengah dan gak kepotong address bar. */
+.screen-center {
+    min-height: 100dvh;
+    padding-top: calc(1.5rem + env(safe-area-inset-top));
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+}
+
+/* Stepper approval berjenjang di halaman detail peminjaman. Empat lingkaran 3rem
+   plus labelnya kepadatan di layar 360px. */
+@media (max-width: 575.98px) {
+    .approval-stepper .stepper-dot {
+        width: 2.25rem !important;
+        height: 2.25rem !important;
+        font-size: .9375rem !important;
+    }
+
+    .approval-stepper .stepper-label {
+        font-size: .75rem;
+        line-height: 1.2;
+    }
+}
+
+/* Bintang rating - gampang salah tap kalau kekecilan/kerapatan. */
+@media (max-width: 575.98px) {
+    .star-rating {
+        font-size: 2rem;
+        padding: .25rem;
+    }
+}
+
+/* Foto sampul katalog & pilih unit. */
+@media (max-width: 575.98px) {
+    .unit-cover {
+        height: 150px !important;
+    }
+}
+
+/* Foto kamar di halaman detail katalog: banner di HP, sekolom penuh di samping
+   teks mulai dari sm ke atas. */
+.katalog-thumb {
+    height: 150px;
+}
+
+@media (min-width: 576px) {
+    .katalog-thumb {
+        height: 100%;
+        min-height: 140px;
+    }
+}
+
+/* Tombol "Pesan Sekarang" di detail bungalow. Di desktop dia kartu di kolom
+   kanan; di HP ditempel jadi action bar di bawah layar supaya gak perlu scroll
+   melewati galeri + kalender ketersediaan dulu buat mesan.
+   Dibatasi sampai 991.98px saja: di atas itu sidebar sudah kelihatan permanen
+   dan bar fixed selebar layar bakal ketiban/nabrak sidebar. */
+@media (max-width: 991.98px) {
+    .booking-cta {
+        position: fixed;
+        inset: auto 0 0 0;
+        z-index: 1020;
+        border-radius: 0 !important;
+        border-top: 1px solid #e5e5e5 !important;
+        box-shadow: 0 -4px 16px rgba(0, 0, 0, .08) !important;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    /* Badge & tombol disejajarkan biar bar-nya setipis mungkin - dia nutupin
+       konten terus-terusan, jadi tiap piksel tingginya kerasa. */
+    .booking-cta .card-body {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        text-align: left !important;
+    }
+
+    .booking-cta .card-body > .badge {
+        flex: 0 0 auto;
+        margin-bottom: 0 !important;
+    }
+
+    .booking-cta .card-body > .btn {
+        flex: 1 1 auto;
+        width: auto !important;
+    }
+
+    /* Ruang buat bar-nya, biar konten terakhir gak ketutupan. */
+    .has-booking-cta {
+        padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+    }
+}
+
+/* Galeri foto di halaman detail katalog. */
+@media (max-width: 575.98px) {
+    .katalog-hero {
+        height: 220px !important;
+    }
+
+    .katalog-hero-thumb {
+        height: 105px !important;
+    }
+}
+
+/* Daftar definisi (dl) di halaman detail: di HP label & isinya numpuk terlalu
+   rapat karena col-sm-3 / col-sm-9 baru aktif dari sm ke atas. */
+@media (max-width: 575.98px) {
+    .card-body > dl.row > dt {
+        font-size: .8125rem;
+        color: #64748b;
+        font-weight: 600;
+        margin-bottom: .125rem;
+    }
+
+    .card-body > dl.row > dd {
+        margin-bottom: .75rem;
+    }
+
+    .card-body > dl.row > dd:last-child {
+        margin-bottom: 0;
+    }
+}

@@ -196,8 +196,8 @@ class KatalogUnitTest extends TestCase
         $step1 = [
             'nama' => 'Tamu', 'telepon' => '08123', 'peminjam_jabatan' => 'Staff',
             'jumlah_tamu' => 1, 'unit_type' => 'kamar',
-            'waktu_mulai' => now()->addDay()->format('Y-m-d\TH:i'),
-            'waktu_selesai' => now()->addDays(2)->format('Y-m-d\TH:i'),
+            'tanggal_masuk' => now()->addDay()->format('Y-m-d'),
+            'tanggal_keluar' => now()->addDays(2)->format('Y-m-d'),
             'keperluan' => 'Test', 'preselect_unit_id' => $kamarB->id,
         ];
 

@@ -58,8 +58,8 @@ class GuestBookingWizardTest extends TestCase
             'peminjam_jabatan' => 'Kabag',
             'jumlah_tamu' => 3,
             'unit_type' => 'kamar',
-            'waktu_mulai' => now()->addDay()->format('Y-m-d\TH:i'),
-            'waktu_selesai' => now()->addDays(2)->format('Y-m-d\TH:i'),
+            'tanggal_masuk' => now()->addDay()->format('Y-m-d'),
+            'tanggal_keluar' => now()->addDays(2)->format('Y-m-d'),
             'keperluan' => 'Rapat dinas',
             'note' => '',
         ];
@@ -89,6 +89,9 @@ class GuestBookingWizardTest extends TestCase
         // Staff stage tetap ke-skip otomatis karena peminjam_role = 'Staff Approval'.
         $this->assertSame('Disetujui', $peminjaman->staff_approval_status);
         $this->assertSame('Menunggu', $peminjaman->kasubbag_approval_status);
+        // Jam check-in/check-out tetap (12:00/10:00), admin cuma isi tanggal.
+        $this->assertSame($step1['tanggal_masuk'] . ' 12:00', $peminjaman->waktu_mulai->format('Y-m-d H:i'));
+        $this->assertSame($step1['tanggal_keluar'] . ' 10:00', $peminjaman->waktu_selesai->format('Y-m-d H:i'));
     }
 
     public function test_mess_picker_hides_messes_without_eligible_kamar_and_shows_fasilitas(): void
@@ -108,8 +111,8 @@ class GuestBookingWizardTest extends TestCase
         $response = $this->actingAs($admin)->post(route('peminjaman.create.unit'), [
             'nama' => 'Tamu', 'telepon' => '0811', 'peminjam_jabatan' => 'Staff',
             'jumlah_tamu' => 5, 'unit_type' => 'kamar',
-            'waktu_mulai' => now()->addDay()->format('Y-m-d\TH:i'),
-            'waktu_selesai' => now()->addDays(2)->format('Y-m-d\TH:i'),
+            'tanggal_masuk' => now()->addDay()->format('Y-m-d'),
+            'tanggal_keluar' => now()->addDays(2)->format('Y-m-d'),
             'keperluan' => 'Test', 'note' => '',
         ]);
 
@@ -118,6 +121,37 @@ class GuestBookingWizardTest extends TestCase
         $response->assertSee('WiFi');
         $response->assertSee('AC');
         $response->assertDontSee('Mess Sempit');
+    }
+
+    public function test_tanggal_masuk_boleh_hari_ini_tapi_tanggal_keluar_wajib_hari_berikutnya(): void
+    {
+        Jabatan::create(['nama' => 'Staff', 'level' => 1, 'status' => 'Aktif']);
+        $bungalow = Bungalow::create(['nama' => 'Bungalow', 'alamat' => 'X', 'kapasitas' => 4, 'status' => 'aktif', 'minimum_jabatan' => 'Staff']);
+        $admin = $this->makeUser('Staff Approval');
+
+        $baseStep1 = [
+            'nama' => 'Tamu', 'telepon' => '0811', 'peminjam_jabatan' => 'Staff',
+            'jumlah_tamu' => 1, 'unit_type' => 'bungalow', 'keperluan' => 'Test',
+        ];
+
+        // Check-out (10:00) lebih pagi dari check-in (12:00), jadi gak
+        // mungkin dalam hari yang sama - harus ditolak.
+        $this->actingAs($admin)->post(route('peminjaman.store'), array_merge($baseStep1, [
+            'tanggal_masuk' => now()->format('Y-m-d'),
+            'tanggal_keluar' => now()->format('Y-m-d'),
+            'unit_id' => $bungalow->id,
+        ]))->assertSessionHasErrors('tanggal_keluar');
+
+        // Tanggal hari ini tetap boleh dipesan (bukan ditolak sebagai
+        // "sudah lewat") walau jam check-in (12:00) sudah kelewatan saat
+        // pengajuan diproses.
+        $this->actingAs($admin)->post(route('peminjaman.store'), array_merge($baseStep1, [
+            'tanggal_masuk' => now()->format('Y-m-d'),
+            'tanggal_keluar' => now()->addDay()->format('Y-m-d'),
+            'unit_id' => $bungalow->id,
+        ]))->assertSessionHasNoErrors();
+
+        $this->assertSame(1, MessBorrowing::count());
     }
 
     public function test_store_rejects_unit_over_capacity_even_if_hidden_fields_tampered(): void
@@ -129,8 +163,8 @@ class GuestBookingWizardTest extends TestCase
         $response = $this->actingAs($admin)->post(route('peminjaman.store'), [
             'nama' => 'Tamu Banyak', 'telepon' => '08111', 'peminjam_jabatan' => 'Staff',
             'jumlah_tamu' => 10, 'unit_type' => 'bungalow',
-            'waktu_mulai' => now()->addDay()->format('Y-m-d\TH:i'),
-            'waktu_selesai' => now()->addDays(2)->format('Y-m-d\TH:i'),
+            'tanggal_masuk' => now()->addDay()->format('Y-m-d'),
+            'tanggal_keluar' => now()->addDays(2)->format('Y-m-d'),
             'keperluan' => 'Test', 'unit_id' => $bungalow->id,
         ]);
 

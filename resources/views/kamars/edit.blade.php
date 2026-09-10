@@ -89,8 +89,10 @@
             </select>
         </div>
 
-        <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
-        <a href="{{ route('messes.kamars.index', $kamar->mess_id) }}" class="btn btn-secondary">Batal</a>
+        <div class="d-flex gap-2 toolbar-actions">
+            <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+            <a href="{{ route('messes.kamars.index', $kamar->mess_id) }}" class="btn btn-secondary">Batal</a>
+        </div>
     </form>
 </div>
 @endsection

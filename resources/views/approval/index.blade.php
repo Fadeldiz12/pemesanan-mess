@@ -116,7 +116,7 @@
 
     {{-- 1. Modal Detail & Tombol Eksekusi --}}
     <div class="modal fade" id="detailModal{{ $b->id }}" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Detail Pengajuan: <span class="text-primary">{{ $b->peminjaman_code }}</span></h5>
@@ -159,16 +159,19 @@
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer bg-light d-flex justify-content-between">
+                {{-- flex-wrap + gap: di HP ketiga tombol ini ditumpuk penuh selebar
+                     modal (diatur .modal-footer di public/css/mobile.css), di layar
+                     lebar tetap berjajar dengan Tutup di kiri. --}}
+                <div class="modal-footer bg-light d-flex justify-content-between flex-wrap gap-2">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
-                    
+
                     @if($canAct)
-                    <div>
-                        <button type="button" class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#editModal{{ $b->id }}">
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#editModal{{ $b->id }}">
                             <i class="ti ti-clock-edit me-1"></i>Edit Waktu
                         </button>
                         {{-- Menggunakan route ApprovalController yang sudah didaftarkan di web.php (approval.approve-staff, dll) --}}
-                        <form method="POST" action="{{ route('approval.approve-'.$level, $b->id) }}" class="d-inline">
+                        <form method="POST" action="{{ route('approval.approve-'.$level, $b->id) }}">
                             @csrf
                             <button type="submit" class="btn btn-success">
                                 <i class="ti ti-check me-1"></i>Setujui Pengajuan

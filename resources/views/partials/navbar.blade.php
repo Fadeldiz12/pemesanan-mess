@@ -1,10 +1,19 @@
-<nav id="topbar" class="navbar bg-white border-bottom fixed-top topbar px-3">
-    <button id="toggleBtn" class="d-none d-lg-inline-flex btn btn-light btn-icon btn-sm">
+<nav id="topbar" class="navbar bg-white border-bottom fixed-top topbar px-3 flex-nowrap">
+    <button id="toggleBtn" type="button" class="d-none d-lg-inline-flex btn btn-light btn-icon btn-sm" aria-label="Perkecil menu samping">
         <i class="ti ti-layout-sidebar-left-expand"></i>
     </button>
-    <button id="mobileBtn" class="btn btn-light btn-icon btn-sm d-lg-none me-2">
-        <i class="ti ti-layout-sidebar-left-expand"></i>
+    <button id="mobileBtn" type="button" class="btn btn-light btn-icon btn-sm d-lg-none me-2" aria-label="Buka menu" aria-controls="sidebar">
+        <i class="ti ti-menu-2"></i>
     </button>
+
+    {{-- Di HP blok judul halaman disembunyikan, jadi judulnya ditaruh di sini
+         supaya user tetap tahu lagi ada di halaman apa. Sebagian view ngasih
+         judulnya lewat @extends('layouts.app', ['title' => ...]) dan bukan
+         @section('header_title'), makanya $title dipakai sebagai cadangan
+         sebelum jatuh ke nama aplikasi. --}}
+    <div class="topbar-brand d-lg-none">
+        <div class="topbar-brand-title">@yield('header_title', $title ?? 'Peminjaman Mess')</div>
+    </div>
 
     <div class="ms-auto">
         <ul class="list-unstyled d-flex align-items-center mb-0 gap-1">

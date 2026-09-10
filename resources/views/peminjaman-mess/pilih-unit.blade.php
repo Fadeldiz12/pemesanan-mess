@@ -22,7 +22,7 @@
                     <dd class="col-sm-9">{{ $step1['jumlah_tamu'] }} orang</dd>
 
                     <dt class="col-sm-3">Tanggal Masuk - Keluar</dt>
-                    <dd class="col-sm-9">{{ \Carbon\Carbon::parse($step1['waktu_mulai'])->format('d M Y, H:i') }} s.d. {{ \Carbon\Carbon::parse($step1['waktu_selesai'])->format('d M Y, H:i') }}</dd>
+                    <dd class="col-sm-9">{{ \Carbon\Carbon::parse($step1['tanggal_masuk'])->format('d M Y') }} (12:00) s.d. {{ \Carbon\Carbon::parse($step1['tanggal_keluar'])->format('d M Y') }} (10:00)</dd>
                 </dl>
                 <a href="{{ route('peminjaman.create') }}" class="small">&laquo; Ubah data tamu</a>
             </div>
@@ -77,9 +77,9 @@
                                         <label for="unit_{{ $unit->id }}" class="text-reset text-decoration-none" style="cursor:pointer;">
                                             <div class="position-relative">
                                                 @if($cover)
-                                                    <img src="{{ asset('storage/' . $cover) }}" class="card-img-top" style="height:160px;object-fit:cover;" alt="{{ $unit->nama_kamar ?? $unit->nama }}">
+                                                    <img src="{{ asset('storage/' . $cover) }}" class="card-img-top unit-cover" style="height:160px;object-fit:cover;" alt="{{ $unit->nama_kamar ?? $unit->nama }}" loading="lazy">
                                                 @else
-                                                    <div class="bg-light d-flex align-items-center justify-content-center" style="height:160px;">
+                                                    <div class="bg-light d-flex align-items-center justify-content-center unit-cover" style="height:160px;">
                                                         <i class="ti ti-{{ $step1['unit_type'] === 'kamar' ? 'bed' : 'building-cottage' }} text-secondary" style="font-size:2.5rem;"></i>
                                                     </div>
                                                 @endif
@@ -107,11 +107,11 @@
                             @endforeach
                         </div>
 
-                        <div class="d-flex justify-content-end gap-2 border-top pt-3">
+                        <div class="d-grid d-sm-flex justify-content-sm-end gap-2 border-top pt-3">
+                            <button type="submit" class="btn btn-primary order-sm-2"><i class="ti ti-send me-1"></i>Ajukan Peminjaman</button>
                             @unless(isset($mess))
-                                <a href="{{ route('peminjaman.create') }}" class="btn btn-light">Kembali</a>
+                                <a href="{{ route('peminjaman.create') }}" class="btn btn-light order-sm-1">Kembali</a>
                             @endunless
-                            <button type="submit" class="btn btn-primary"><i class="ti ti-send me-1"></i>Ajukan Peminjaman</button>
                         </div>
                     </form>
 

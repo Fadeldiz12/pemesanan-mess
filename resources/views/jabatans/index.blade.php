@@ -5,7 +5,7 @@
     $canUpdate = \App\Support\AccessMatrix::can('jabatan', 'update');
     $canDelete = \App\Support\AccessMatrix::can('jabatan', 'delete');
 @endphp
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-start align-items-sm-center flex-wrap gap-2 mb-3">
     <div>
         <h2 class="fs-5 mb-1"><i class="ti ti-stairs-up text-primary me-2"></i>Manajemen Jabatan</h2>
         <p class="text-secondary mb-0 small">Urutan dari atas = jabatan tertinggi. Dipakai untuk kelayakan pemesanan unit &amp; harga per jabatan.</p>

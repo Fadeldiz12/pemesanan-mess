@@ -42,6 +42,8 @@
         <!-- 1. KARTU DETAIL PEMINJAMAN -->
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-body p-4">
+                {{-- text-sm-end: di HP badge & tombol cetak rata kiri ngikutin
+                     judulnya, baru dari sm ke atas didorong ke kanan. --}}
                 <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4 pb-3 border-bottom">
                     <div>
                         <h2 class="fs-4 mb-2 fw-bold text-dark">
@@ -54,7 +56,7 @@
                             <i class="ti ti-briefcase me-1"></i>{{ $peminjaman->peminjam_role }}
                         </p>
                     </div>
-                    <div class="text-end">
+                    <div class="text-start text-sm-end">
                         @if($peminjaman->peminjaman_status === 'Dibatalkan')
                             <span class="badge bg-dark px-3 py-2 fs-6 shadow-sm d-block mb-1"><i class="ti ti-ban me-1"></i>Dibatalkan</span>
                         @elseif($peminjaman->peminjaman_status === 'Ditolak')
@@ -92,9 +94,9 @@
 
                 {{-- Stepper approval berjenjang --}}
                 @unless($isFinal && $peminjaman->peminjaman_status !== 'Disetujui' && $peminjaman->peminjaman_status !== 'Selesai')
-                <div class="d-flex mb-5 mt-3 position-relative px-md-4">
+                <div class="d-flex mb-4 mb-md-5 mt-3 position-relative px-md-4 approval-stepper">
                     @foreach($stages as $i => $stage)
-                        <div class="text-center flex-fill position-relative" style="z-index: 2;">
+                        <div class="text-center flex-fill position-relative" style="z-index: 2; min-width: 0;">
                             @if($i > 0)
                                 <div class="position-absolute top-50 start-0 translate-middle-y" style="height:3px; width:50%; background:{{ $i <= $currentStageIndex || $peminjaman->peminjaman_status === 'Selesai' ? 'var(--bs-success)' : '#e5e5e5' }}; z-index: -1;"></div>
                             @endif
@@ -102,7 +104,7 @@
                                 <div class="position-absolute top-50 end-0 translate-middle-y" style="height:3px; width:50%; background:{{ $i < $currentStageIndex || $peminjaman->peminjaman_status === 'Selesai' ? 'var(--bs-success)' : '#e5e5e5' }}; z-index: -1;"></div>
                             @endif
                             
-                            <div class="icon-shape rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center border border-2 shadow-sm
+                            <div class="icon-shape stepper-dot rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center border border-2 shadow-sm
                                 {{ $i < $currentStageIndex || in_array($peminjaman->peminjaman_status, ['Disetujui', 'Selesai']) ? 'bg-success text-white border-success' : ($i === $currentStageIndex ? 'bg-primary text-white border-primary' : 'bg-white text-secondary border-light') }}"
                                 style="width: 3rem; height: 3rem; font-size: 1.25rem;">
                                 @if($i < $currentStageIndex || in_array($peminjaman->peminjaman_status, ['Disetujui', 'Selesai']))
@@ -111,13 +113,13 @@
                                     <span class="fw-bold">{{ $i + 1 }}</span>
                                 @endif
                             </div>
-                            <div class="{{ $i === $currentStageIndex ? 'fw-bold text-primary' : 'text-secondary small' }}">{{ $stage }}</div>
+                            <div class="stepper-label {{ $i === $currentStageIndex ? 'fw-bold text-primary' : 'text-secondary small' }}">{{ $stage }}</div>
                         </div>
                     @endforeach
                 </div>
                 @endunless
 
-                <div class="row g-4 bg-light rounded p-4 border">
+                <div class="row g-3 g-md-4 bg-light rounded p-3 p-md-4 border">
                     <div class="col-12 col-sm-6">
                         <label class="mb-1 small text-muted d-block"><i class="ti ti-phone me-1"></i>No. Telepon Tamu</label>
                         <div class="fs-6 fw-semibold text-dark">{{ $peminjaman->peminjam_telepon }}</div>
@@ -165,7 +167,7 @@
             <div class="card-body p-4">
                 <p class="text-secondary small mb-3">Unit dan rentang waktu yang sama diajukan juga oleh {{ $conflicts->count() }} peminjaman lain. Prioritas ditentukan berdasarkan jabatan (Kabag &gt; Kasubag &gt; Staff).</p>
                 @foreach($conflicts as $c)
-                    <div class="d-flex justify-content-between align-items-center border rounded p-3 mb-2 {{ $c['diprioritaskan'] ? 'bg-white' : 'bg-light' }}">
+                    <div class="d-flex justify-content-between align-items-start align-items-sm-center flex-column flex-sm-row gap-2 border rounded p-3 mb-2 {{ $c['diprioritaskan'] ? 'bg-white' : 'bg-light' }}">
                         <div>
                             <div class="fw-semibold text-dark">{{ $c['peminjaman']->peminjaman_code }} &middot; {{ $c['peminjaman']->peminjam_name }}</div>
                             <div class="small text-muted">
@@ -174,7 +176,7 @@
                                 {{ \Carbon\Carbon::parse($c['peminjaman']->waktu_mulai)->format('d M Y, H:i') }} - {{ \Carbon\Carbon::parse($c['peminjaman']->waktu_selesai)->format('d M Y, H:i') }}
                             </div>
                         </div>
-                        <div class="text-end">
+                        <div class="text-start text-sm-end flex-shrink-0">
                             @if($c['diprioritaskan'])
                                 <span class="badge bg-secondary-subtle text-secondary d-block mb-1">Prioritas lebih rendah</span>
                             @else
