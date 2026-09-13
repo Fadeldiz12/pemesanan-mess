@@ -170,6 +170,23 @@ class MessBorrowing extends Model
         return self::jabatanLevel($this->peminjam_jabatan) > self::jabatanLevel($other->peminjam_jabatan);
     }
 
+    /**
+     * Tahap approval yang sedang menunggu ('staff'/'kasubbag'/'kabag'/
+     * 'admin'), atau null kalau sudah final (Disetujui/Ditolak/dst) - dipakai
+     * bareng oleh PeminjamanMessController & view (index/show) supaya logic
+     * pemetaan approval_status -> stage gak terduplikasi di banyak tempat.
+     */
+    public function currentApprovalStage(): ?string
+    {
+        return match ($this->approval_status) {
+            'Menunggu Staff' => 'staff',
+            'Menunggu Kasubbag' => 'kasubbag',
+            'Menunggu Kabag' => 'kabag',
+            'Menunggu Admin' => 'admin',
+            default => null,
+        };
+    }
+
     public function candidateApprovers(string $stage): Collection
     {
         $roleMap = [
@@ -184,7 +201,13 @@ class MessBorrowing extends Model
             return collect();
         }
 
-        $query = User::where('role', $targetRole);
+        // is_on_leave: user yang sedang cuti gak dihitung sebagai approver
+        // yang tersedia (Manajemen User -> tombol "Tandai Cuti"). Kalau dia
+        // satu-satunya kandidat di department/subdepartment-nya, koleksi ini
+        // jadi kosong dan settleApprovalStage() otomatis melewati tahap ini
+        // (skip-tanpa-kandidat, perilaku yang sudah ada sebelumnya untuk
+        // department yang memang belum punya approver sama sekali).
+        $query = User::where('role', $targetRole)->where('is_on_leave', false);
 
         // 'sub_department' cuma string bebas di tabel users (bukan FK ke
         // sub_departments), dan nama sub-bagian seperti "Umum" dipakai

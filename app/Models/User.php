@@ -21,6 +21,8 @@ class User extends Authenticatable
         'role',
         'status',
         'force_change_password',
+        'is_on_leave',
+        'on_leave_note',
     ];
 
     protected $hidden = [
@@ -30,6 +32,7 @@ class User extends Authenticatable
 
     protected $casts = [
         'force_change_password' => 'boolean',
+        'is_on_leave' => 'boolean',
         'last_login_at' => 'datetime',
     ];
 

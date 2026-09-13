@@ -32,6 +32,16 @@
     if ($peminjaman->approval_status === 'Menunggu Kasubbag' && $roleSaya === 'Kasubbag Approval') $canAct = true;
     if ($peminjaman->approval_status === 'Menunggu Kabag' && $roleSaya === 'Kabag Approval') $canAct = true;
     if ($peminjaman->approval_status === 'Menunggu Admin' && $isAdmin) $canAct = true;
+
+    // Info approver dinamis untuk Admin/Super Admin (siapa yang harus approve tahap
+    // saat ini) - dihitung ulang tiap request dari candidateApprovers() supaya selalu
+    // mencerminkan ketersediaan approver saat ini (mis. berkurang kalau sedang cuti).
+    // Nama variabel SENGAJA beda dari $stage yang dipakai @foreach($stages as $i =>
+    // $stage) di stepper di bawah - kalau numpang nama $stage, nilainya keburu
+    // ketiban jadi elemen TERAKHIR $stages ('Admin') begitu foreach itu selesai.
+    $approvalStageLabels = ['staff' => 'Staff', 'kasubbag' => 'Kasubbag', 'kabag' => 'Kabag'];
+    $waitingStage = $peminjaman->currentApprovalStage();
+    $waitingOn = ($isAdmin && $waitingStage && array_key_exists($waitingStage, $approvalStageLabels)) ? $peminjaman->candidateApprovers($waitingStage) : null;
 @endphp
 
 @section('content')
@@ -278,6 +288,29 @@
                         </div>
                     </form>
                 </div>
+            </div>
+        </div>
+        @endif
+
+        {{-- Info & Aksi Skip Approval (Admin/Super Admin) - tampil selama pengajuan
+             masih menunggu tahap Staff/Kasubbag/Kabag, supaya Admin bisa lihat siapa
+             yang seharusnya approve & melewati tahap kalau tidak ada yang tersedia
+             (mis. approver-nya sedang cuti, lihat Manajemen User). --}}
+        @if($waitingOn !== null)
+        <div class="card border-0 shadow-sm mb-4 border-top border-4 border-warning">
+            <div class="card-header bg-white py-3"><h5 class="fs-6 mb-0 fw-bold">Menunggu Approval {{ $approvalStageLabels[$waitingStage] }}</h5></div>
+            <div class="card-body">
+                @if($waitingOn->isNotEmpty())
+                    <p class="text-secondary small mb-0">Menunggu persetujuan dari: <strong>{{ $waitingOn->pluck('name')->join(', ') }}</strong>.</p>
+                @else
+                    <p class="text-danger small mb-3"><i class="ti ti-alert-triangle me-1"></i>Tidak ada approver {{ $approvalStageLabels[$waitingStage] }} yang tersedia untuk bagian ini (kemungkinan sedang cuti - lihat menu Manajemen User).</p>
+                    <form class="ajax-form" action="{{ route('peminjaman.skip-stage', $peminjaman->id) }}" method="POST">
+                        @csrf
+                        <button type="submit" class="btn btn-outline-danger w-100 fw-semibold btn-save" onclick="return confirm('Lewati tahap {{ $approvalStageLabels[$waitingStage] }} karena tidak ada approver yang tersedia?')">
+                            <i class="ti ti-player-skip-forward me-2"></i>Lewati Tahap Ini
+                        </button>
+                    </form>
+                @endif
             </div>
         </div>
         @endif
