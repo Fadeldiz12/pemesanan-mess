@@ -831,13 +831,44 @@ class PeminjamanMessController extends Controller
 
     private function currentStage(MessBorrowing $peminjaman): ?string
     {
-        return match ($peminjaman->approval_status) {
-            'Menunggu Staff' => 'staff',
-            'Menunggu Kasubbag' => 'kasubbag',
-            'Menunggu Kabag' => 'kabag',
-            'Menunggu Admin' => 'admin',
-            default => null,
-        };
+        return $peminjaman->currentApprovalStage();
+    }
+
+    /**
+     * Melewati tahap approval (staff/kasubbag/kabag) yang sedang macet
+     * karena TIDAK ADA approver yang tersedia lagi di department/
+     * subdepartment terkait - misalnya satu-satunya Kasubbag Approval di
+     * bagian itu sedang ditandai cuti (Manajemen User -> "Tandai Cuti").
+     * Khusus Admin/Super Admin, dan HANYA kalau kandidat approver-nya
+     * memang kosong - kalau masih ada yang bisa approve, endpoint ini
+     * menolak supaya Admin tidak membypass approver yang sebenarnya masih
+     * aktif (tetap konsisten dengan aturan approval berjenjang normal).
+     */
+    public function skipStage(Request $request, MessBorrowing $peminjaman): JsonResponse
+    {
+        $this->authorizeAction($request, 'approve');
+
+        $user = $request->user();
+        abort_unless(in_array($user->role, ['Admin', 'Super Admin'], true), 403, 'Hanya Admin yang dapat melewati tahap approval.');
+
+        $stage = $this->currentStage($peminjaman);
+
+        if (! in_array($stage, ['staff', 'kasubbag', 'kabag'], true)) {
+            return response()->json(['message' => 'Tahap ini tidak dapat dilewati.'], 422);
+        }
+
+        if ($peminjaman->candidateApprovers($stage)->isNotEmpty()) {
+            return response()->json(['message' => 'Masih ada approver yang tersedia untuk tahap ini, tidak bisa dilewati.'], 422);
+        }
+
+        DB::transaction(function () use ($peminjaman) {
+            $peminjaman->settleApprovalStage();
+            $peminjaman->save();
+        });
+
+        ActivityLog::record($user, 'skip_stage', 'peminjaman_mess', (string) $peminjaman->id, "Melewati tahap {$stage} untuk {$peminjaman->peminjaman_code} (tidak ada approver tersedia)");
+
+        return response()->json($peminjaman->fresh());
     }
 
     private function nextApprovalLabel(string $currentStage): string

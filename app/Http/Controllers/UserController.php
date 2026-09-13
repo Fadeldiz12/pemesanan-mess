@@ -158,6 +158,88 @@ class UserController extends Controller
     }
 
     /**
+     * Tandai/batalkan status "Sedang Cuti" untuk user di tangga approval
+     * (Staff/Kasubbag/Kabag Approval). Selama cuti, MessBorrowing::
+     * candidateApprovers() gak menghitung dia sebagai approver yang
+     * tersedia - kalau dia satu-satunya approver di department/
+     * subdepartment-nya, pengajuan yang lagi macet menunggu dia akan
+     * langsung dilanjutkan otomatis ke tahap berikutnya begitu ditandai
+     * cuti (bukan cuma berlaku untuk pengajuan baru).
+     */
+    public function toggleLeave(Request $request, User $user)
+    {
+        $this->authorizeAction($request, 'update');
+
+        $data = $request->validate(['on_leave_note' => ['nullable', 'string', 'max:255']]);
+
+        $isOnLeave = ! $user->is_on_leave;
+
+        $user->update([
+            'is_on_leave' => $isOnLeave,
+            'on_leave_note' => $isOnLeave ? ($data['on_leave_note'] ?? null) : null,
+        ]);
+
+        $advanced = $isOnLeave ? $this->advanceStuckApprovals($user) : 0;
+
+        ActivityLog::record(
+            $request->user(),
+            $isOnLeave ? 'Tandai Cuti' : 'Selesai Cuti',
+            'User',
+            $user->id,
+            "{$user->name} ({$user->username})" . ($advanced ? " - {$advanced} pengajuan otomatis dilanjutkan" : '')
+        );
+
+        $message = $isOnLeave
+            ? "{$user->name} ditandai sedang cuti." . ($advanced ? " {$advanced} pengajuan yang macet menunggu dia otomatis dilanjutkan." : '')
+            : "{$user->name} sudah tidak cuti lagi.";
+
+        return back()->with('success', $message);
+    }
+
+    /**
+     * Begitu satu-satunya approver di suatu tahap ditandai cuti, cari
+     * pengajuan yang lagi macet MENUNGGU tahap & department/subdepartment
+     * user tsb, lalu coba settle ulang - settleApprovalStage() cuma
+     * benar-benar maju kalau candidateApprovers() untuk tahap itu memang
+     * sudah kosong (dicek ulang per baris), jadi tidak akan melewati
+     * approver lain yang masih aktif di department yang sama.
+     */
+    private function advanceStuckApprovals(User $user): int
+    {
+        $stageMap = [
+            'Staff Approval' => 'staff',
+            'Kasubbag Approval' => 'kasubbag',
+            'Kabag Approval' => 'kabag',
+        ];
+        $stage = $stageMap[$user->role] ?? null;
+
+        if (! $stage || blank($user->department)) {
+            return 0;
+        }
+
+        $query = MessBorrowing::where('approval_status', 'Menunggu ' . ucfirst($stage))
+            ->where('peminjam_department', $user->department);
+
+        if (in_array($stage, ['staff', 'kasubbag'], true)) {
+            $query->where('peminjam_sub_department', $user->sub_department);
+        }
+
+        $advanced = 0;
+
+        foreach ($query->get() as $borrowing) {
+            if ($borrowing->candidateApprovers($stage)->isNotEmpty()) {
+                continue;
+            }
+
+            $borrowing->settleApprovalStage();
+            $borrowing->save();
+            $advanced++;
+        }
+
+        return $advanced;
+    }
+
+    /**
      * Reset password paksa oleh Admin/Super Admin (mis. user lupa password).
      * Berbeda dari alur ganti password mandiri (force_change_password) - di
      * sini admin yang menentukan password barunya lewat form.

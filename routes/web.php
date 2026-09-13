@@ -85,6 +85,9 @@ Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->gr
     Route::post('/peminjaman-mess/{peminjaman}/approve', [PeminjamanMessController::class, 'approve'])->name('peminjaman.approve');
     Route::post('/peminjaman-mess/{peminjaman}/reject', [PeminjamanMessController::class, 'reject'])->name('peminjaman.reject');
 
+    // Lewati tahap approval yang macet karena tidak ada approver tersedia (mis. sedang cuti)
+    Route::post('/peminjaman-mess/{peminjaman}/skip-stage', [PeminjamanMessController::class, 'skipStage'])->name('peminjaman.skip-stage');
+
     // Halaman List & Aksi Approval Dedicated (ApprovalController)
     Route::get('/approval', [ApprovalController::class, 'index'])->name('approval.index');
     Route::post('/approval/{borrowing}/approve-staff', [ApprovalController::class, 'approveStaff'])->name('approval.approve-staff');
@@ -125,6 +128,7 @@ Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->gr
     // Manajemen User & Management Akses (Administrasi)
     Route::resource('users', UserController::class)->except(['show']);
     Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+    Route::post('/users/{user}/toggle-leave', [UserController::class, 'toggleLeave'])->name('users.toggle-leave');
 
     Route::get('/role-access', [RoleAccessController::class, 'index'])->name('role-access.index');
     Route::post('/role-access', [RoleAccessController::class, 'update'])->name('role-access.update');

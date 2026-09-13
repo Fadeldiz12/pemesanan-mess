@@ -5,6 +5,8 @@
 
 @php
     $canCreate = \App\Support\AccessMatrix::can('peminjaman-mess', 'create');
+    $isAdminView = in_array(auth()->user()->role ?? null, ['Admin', 'Super Admin'], true);
+    $stageLabel = ['staff' => 'Staff', 'kasubbag' => 'Kasubbag', 'kabag' => 'Kabag', 'admin' => 'Admin'];
 
     $statusColor = [
         'Menunggu Staff' => 'warning',
@@ -53,6 +55,9 @@
                     <th>Unit / Tujuan</th>
                     <th>Jadwal</th>
                     <th>Status</th>
+                    @if($isAdminView)
+                        <th>Menunggu Approval</th>
+                    @endif
                     <th class="text-center pe-4">Aksi</th>
                 </tr>
             </thead>
@@ -63,6 +68,12 @@
                         $unitName = $item->bookable?->nama_kamar ?? $item->bookable?->nama ?? '(Unit Terhapus)';
                         $displayStatus = $item->peminjaman_status === 'Selesai' ? 'Selesai' : $item->approval_status;
                         $badgeColor = $statusColor[$displayStatus] ?? 'secondary';
+
+                        // Info approver dinamis (khusus tampilan Admin/Super Admin di halaman "pengajuan semua"):
+                        // dihitung ulang tiap request dari candidateApprovers() supaya selalu mencerminkan
+                        // siapa yang BENAR-BENAR tersedia saat ini (mis. berkurang kalau ada yang sedang cuti).
+                        $stage = $isAdminView ? $item->currentApprovalStage() : null;
+                        $waitingOn = ($stage && in_array($stage, ['staff', 'kasubbag', 'kabag'], true)) ? $item->candidateApprovers($stage) : null;
                     @endphp
                     <tr>
                         <td class="toggle-cell ps-4" data-label="Kode">
@@ -92,6 +103,30 @@
                                 <span class="badge bg-warning text-dark px-2 py-1 d-block mt-1"><i class="ti ti-alert-triangle me-1"></i>Surat belum diupload</span>
                             @endif
                         </td>
+                        @if($isAdminView)
+                            <td data-label="Menunggu Approval">
+                                @if(is_null($stage))
+                                    <span class="text-muted small">-</span>
+                                @elseif($waitingOn === null)
+                                    {{-- stage 'admin': validasi akhir memang wewenang Admin langsung, bukan lewat skip --}}
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle">Menunggu {{ $stageLabel[$stage] }} (Anda)</span>
+                                @elseif($waitingOn->isNotEmpty())
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle d-block mb-1">Menunggu {{ $stageLabel[$stage] }}</span>
+                                    <span class="text-muted small">{{ $waitingOn->pluck('name')->join(', ') }}</span>
+                                @else
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle d-block mb-1">
+                                        <i class="ti ti-alert-triangle me-1"></i>Tidak ada approver {{ $stageLabel[$stage] }} tersedia
+                                    </span>
+                                    <span class="text-muted small d-block mb-1">Kemungkinan sedang cuti.</span>
+                                    <form method="post" class="skip-stage-form" action="{{ route('peminjaman.skip-stage', $item) }}">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-outline-danger btn-save" onclick="return confirm('Lewati tahap {{ $stageLabel[$stage] }} untuk {{ $item->peminjaman_code }} karena tidak ada approver yang tersedia?')">
+                                            <i class="ti ti-player-skip-forward me-1"></i>Lewati Tahap Ini
+                                        </button>
+                                    </form>
+                                @endif
+                            </td>
+                        @endif
                         <td class="action-data text-center pe-4" data-label="Aksi">
                             <a href="{{ route('peminjaman.show', $item) }}" class="btn btn-light btn-sm shadow-sm border">
                                 <i class="ti ti-eye me-1 text-primary"></i>Detail
@@ -100,7 +135,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="text-muted text-center py-5">
+                        <td colspan="{{ $isAdminView ? 7 : 6 }}" class="text-muted text-center py-5">
                             <i class="ti ti-folder-off fs-1 d-block mb-2"></i>
                             Belum ada data peminjaman yang ditemukan.
                         </td>
@@ -116,4 +151,49 @@
         </div>
     @endif
 </div>
+
+@if($isAdminView)
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.body.addEventListener('submit', function (event) {
+            if (!event.target || !event.target.classList.contains('skip-stage-form')) return;
+
+            event.preventDefault();
+
+            const form = event.target;
+            const btn = form.querySelector('.btn-save');
+            const originalText = btn.innerHTML;
+
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Memproses...';
+            btn.disabled = true;
+
+            fetch(form.getAttribute('action'), {
+                method: 'POST',
+                body: new FormData(form),
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(async response => {
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    alert(data.message || 'Gagal melewati tahap approval.');
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    return;
+                }
+                window.location.reload();
+            })
+            .catch(() => {
+                alert('Terjadi kesalahan jaringan.');
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+        });
+    });
+</script>
+@endpush
+@endif
 @endsection
