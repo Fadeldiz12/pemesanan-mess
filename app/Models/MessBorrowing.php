@@ -103,6 +103,17 @@ class MessBorrowing extends Model
     public function settleApprovalStage(): void
     {
         foreach (self::STAGE_ORDER as $stage) {
+            // Sebelum baris pernah tersimpan (dipanggil dari creating()),
+            // kolom tahap yang belum pernah disentuh kode (mis. kasubbag/
+            // kabag/admin pada pengajuan yang stage awalnya cuma nyentuh
+            // staff) masih NULL di PHP - default kolom 'Menunggu' baru
+            // benar-benar diisi database saat INSERT, belum tercermin di
+            // objek ini. Tanpa baris ini, NULL !== 'Menunggu' bikin tahap
+            // itu ke-skip dari pengecekan kandidat sama sekali (bukan
+            // karena kandidatnya memang kosong), dan pengajuan baru selalu
+            // jatuh ke 'Disetujui' penuh walau approver-nya sebenarnya ada.
+            $this->{"{$stage}_approval_status"} ??= 'Menunggu';
+
             if ($this->{"{$stage}_approval_status"} !== 'Menunggu') {
                 continue;
             }
@@ -201,13 +212,7 @@ class MessBorrowing extends Model
             return collect();
         }
 
-        // is_on_leave: user yang sedang cuti gak dihitung sebagai approver
-        // yang tersedia (Manajemen User -> tombol "Tandai Cuti"). Kalau dia
-        // satu-satunya kandidat di department/subdepartment-nya, koleksi ini
-        // jadi kosong dan settleApprovalStage() otomatis melewati tahap ini
-        // (skip-tanpa-kandidat, perilaku yang sudah ada sebelumnya untuk
-        // department yang memang belum punya approver sama sekali).
-        $query = User::where('role', $targetRole)->where('is_on_leave', false);
+        $query = User::where('role', $targetRole);
 
         // 'sub_department' cuma string bebas di tabel users (bukan FK ke
         // sub_departments), dan nama sub-bagian seperti "Umum" dipakai

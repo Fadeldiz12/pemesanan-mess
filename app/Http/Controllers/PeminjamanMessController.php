@@ -835,14 +835,13 @@ class PeminjamanMessController extends Controller
     }
 
     /**
-     * Melewati tahap approval (staff/kasubbag/kabag) yang sedang macet
-     * karena TIDAK ADA approver yang tersedia lagi di department/
-     * subdepartment terkait - misalnya satu-satunya Kasubbag Approval di
-     * bagian itu sedang ditandai cuti (Manajemen User -> "Tandai Cuti").
-     * Khusus Admin/Super Admin, dan HANYA kalau kandidat approver-nya
-     * memang kosong - kalau masih ada yang bisa approve, endpoint ini
-     * menolak supaya Admin tidak membypass approver yang sebenarnya masih
-     * aktif (tetap konsisten dengan aturan approval berjenjang normal).
+     * Melewati tahap approval (staff/kasubbag/kabag) yang sedang macet -
+     * mis. satu-satunya Kasubbag Approval di bagian itu sedang cuti. Ini
+     * override MANUAL: Admin memutuskan sendiri kapan perlu dilewati
+     * (sistem tidak punya cara mengetahui approver sedang cuti atau tidak),
+     * makanya TIDAK digantungkan ke candidateApprovers() kosong/tidaknya -
+     * satu-satunya syarat adalah alasan wajib diisi untuk jejak audit
+     * (tercatat di ActivityLog & catatan peminjaman).
      */
     public function skipStage(Request $request, MessBorrowing $peminjaman): JsonResponse
     {
@@ -857,16 +856,18 @@ class PeminjamanMessController extends Controller
             return response()->json(['message' => 'Tahap ini tidak dapat dilewati.'], 422);
         }
 
-        if ($peminjaman->candidateApprovers($stage)->isNotEmpty()) {
-            return response()->json(['message' => 'Masih ada approver yang tersedia untuk tahap ini, tidak bisa dilewati.'], 422);
-        }
+        $validated = $request->validate([
+            'alasan' => ['required', 'string', 'max:500'],
+        ]);
 
-        DB::transaction(function () use ($peminjaman) {
+        DB::transaction(function () use ($peminjaman, $stage, $validated) {
+            $peminjaman->{"{$stage}_approval_status"} = 'Disetujui';
+            $peminjaman->note = trim(($peminjaman->note ? $peminjaman->note . ' | ' : '') . "Tahap {$stage} dilewati Admin: {$validated['alasan']}");
             $peminjaman->settleApprovalStage();
             $peminjaman->save();
         });
 
-        ActivityLog::record($user, 'skip_stage', 'peminjaman_mess', (string) $peminjaman->id, "Melewati tahap {$stage} untuk {$peminjaman->peminjaman_code} (tidak ada approver tersedia)");
+        ActivityLog::record($user, 'skip_stage', 'peminjaman_mess', (string) $peminjaman->id, "Melewati tahap {$stage} untuk {$peminjaman->peminjaman_code}: {$validated['alasan']}");
 
         return response()->json($peminjaman->fresh());
     }

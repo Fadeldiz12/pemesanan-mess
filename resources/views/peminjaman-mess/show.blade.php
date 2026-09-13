@@ -293,24 +293,34 @@
         @endif
 
         {{-- Info & Aksi Skip Approval (Admin/Super Admin) - tampil selama pengajuan
-             masih menunggu tahap Staff/Kasubbag/Kabag, supaya Admin bisa lihat siapa
-             yang seharusnya approve & melewati tahap kalau tidak ada yang tersedia
-             (mis. approver-nya sedang cuti, lihat Manajemen User). --}}
+             masih menunggu tahap Staff/Kasubbag/Kabag. Info kandidat approver di
+             sini murni informasi; tombol "Lewati Tahap Ini" adalah override
+             MANUAL milik Admin (mis. approver-nya sedang cuti) - selalu tersedia
+             di sini terlepas dari status kandidatnya, karena sistem tidak
+             mengetahui approver sedang cuti atau tidak (bukan otomatis). --}}
         @if($waitingOn !== null)
         <div class="card border-0 shadow-sm mb-4 border-top border-4 border-warning">
             <div class="card-header bg-white py-3"><h5 class="fs-6 mb-0 fw-bold">Menunggu Approval {{ $approvalStageLabels[$waitingStage] }}</h5></div>
             <div class="card-body">
                 @if($waitingOn->isNotEmpty())
-                    <p class="text-secondary small mb-0">Menunggu persetujuan dari: <strong>{{ $waitingOn->pluck('name')->join(', ') }}</strong>.</p>
+                    <p class="text-secondary small mb-3">Menunggu persetujuan dari: <strong>{{ $waitingOn->pluck('name')->join(', ') }}</strong>.</p>
                 @else
-                    <p class="text-danger small mb-3"><i class="ti ti-alert-triangle me-1"></i>Tidak ada approver {{ $approvalStageLabels[$waitingStage] }} yang tersedia untuk bagian ini (kemungkinan sedang cuti - lihat menu Manajemen User).</p>
+                    <p class="text-danger small mb-3"><i class="ti ti-alert-triangle me-1"></i>Tidak ada approver {{ $approvalStageLabels[$waitingStage] }} yang tersedia untuk bagian ini.</p>
+                @endif
+
+                <button type="button" class="btn btn-outline-warning w-100 fw-semibold" data-bs-toggle="collapse" data-bs-target="#formLewati">
+                    <i class="ti ti-player-skip-forward me-2"></i>Lewati Tahap Ini
+                </button>
+                <div class="collapse mt-2" id="formLewati">
                     <form class="ajax-form" action="{{ route('peminjaman.skip-stage', $peminjaman->id) }}" method="POST">
                         @csrf
-                        <button type="submit" class="btn btn-outline-danger w-100 fw-semibold btn-save" onclick="return confirm('Lewati tahap {{ $approvalStageLabels[$waitingStage] }} karena tidak ada approver yang tersedia?')">
-                            <i class="ti ti-player-skip-forward me-2"></i>Lewati Tahap Ini
-                        </button>
+                        <div class="bg-light p-3 rounded border border-warning">
+                            <label class="form-label small fw-semibold">Alasan Melewati Tahap Ini</label>
+                            <textarea name="alasan" class="form-control form-control-sm mb-3" rows="3" required placeholder="Contoh: Kasubbag sedang cuti sampai tanggal..."></textarea>
+                            <button type="submit" class="btn btn-warning btn-sm w-100 btn-save">Konfirmasi Lewati Tahap</button>
+                        </div>
                     </form>
-                @endif
+                </div>
             </div>
         </div>
         @endif
