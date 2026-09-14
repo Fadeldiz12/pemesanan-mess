@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\Bungalow;
+use App\Models\Department;
 use App\Models\Jabatan;
 use App\Models\Kamar;
 use App\Models\Mess;
@@ -50,11 +51,15 @@ class PeminjamanMessController extends Controller
             });
         }
 
-        // Filter otomatis untuk melihat data sesuai Hak Akses (Role/Departemen)
+        // Filter otomatis untuk melihat data sesuai Hak Akses (Role/Departemen).
+        // Scoping-nya dipusatkan di MessBorrowing::scopeVisibleToApprover()
+        // (dipakai bareng oleh ApprovalController::index()) supaya tidak lagi
+        // bisa drift antara dua controller ini seperti yang pernah terjadi -
+        // termasuk visibilitas lintas-bagian untuk tahap 'kabag_sdm'.
         $user = $request->user();
         if ($user?->role !== 'Admin' && $user?->role !== 'Super Admin') {
             if (in_array($user?->role, ['Staff Approval', 'Kasubbag Approval', 'Kabag Approval'])) {
-                $query->where('peminjam_department', $user->department);
+                $query->visibleToApprover($user);
             } else {
                 $query->where('created_by', $user?->id);
             }
@@ -65,7 +70,13 @@ class PeminjamanMessController extends Controller
         // (created_at) yang seharusnya dipakai untuk "pengajuan terbaru duluan".
         $peminjamans = $query->latest()->paginate(10);
 
-        return view('peminjaman-mess.index', compact('peminjamans'));
+        // Panel "Ketersediaan Approver" (toggle Staff/Kasubbag/Kabag per
+        // bagian/subbagian, lihat ApproverAvailabilityController) - cuma
+        // relevan & ditampilkan untuk Admin/Super Admin.
+        $isAdminView = in_array($user?->role, ['Admin', 'Super Admin'], true);
+        $departments = $isAdminView ? Department::with('subDepartments')->orderBy('name')->get() : collect();
+
+        return view('peminjaman-mess.index', compact('peminjamans', 'departments'));
     }
 
     /**
@@ -852,7 +863,7 @@ class PeminjamanMessController extends Controller
 
         $stage = $this->currentStage($peminjaman);
 
-        if (! in_array($stage, ['staff', 'kasubbag', 'kabag'], true)) {
+        if (! in_array($stage, ['staff', 'kasubbag', 'kabag', 'kabag_sdm'], true)) {
             return response()->json(['message' => 'Tahap ini tidak dapat dilewati.'], 422);
         }
 
@@ -877,7 +888,8 @@ class PeminjamanMessController extends Controller
         return match ($currentStage) {
             'staff' => 'Menunggu Kasubbag',
             'kasubbag' => 'Menunggu Kabag',
-            'kabag' => 'Menunggu Admin',
+            'kabag' => 'Menunggu Kabag SDM',
+            'kabag_sdm' => 'Menunggu Admin',
             'admin' => 'Disetujui',
             default => 'Disetujui',
         };

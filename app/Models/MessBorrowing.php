@@ -48,7 +48,23 @@ class MessBorrowing extends Model
         'Kabag' => 3,
     ];
 
-    private const STAGE_ORDER = ['staff', 'kasubbag', 'kabag', 'admin'];
+    private const STAGE_ORDER = ['staff', 'kasubbag', 'kabag', 'kabag_sdm', 'admin'];
+
+    /**
+     * Label tampilan tiap stage, dipakai untuk menyusun string
+     * approval_status ('Menunggu ' . label) di settleApprovalStage() dan
+     * dipakai ulang oleh ApprovalController. WAJIB pakai map eksplisit ini,
+     * BUKAN ucfirst($stage) - ucfirst('kabag_sdm') menghasilkan
+     * "Kabag_sdm", bukan "Kabag SDM" (stage lain kebetulan 1 kata jadi
+     * "aman" dipakein ucfirst, tapi itu cuma kebetulan).
+     */
+    public const STAGE_LABELS = [
+        'staff' => 'Staff',
+        'kasubbag' => 'Kasubbag',
+        'kabag' => 'Kabag',
+        'kabag_sdm' => 'Kabag SDM',
+        'admin' => 'Admin',
+    ];
 
     protected $guarded = ['id'];
 
@@ -58,6 +74,7 @@ class MessBorrowing extends Model
         'staff_approved_at' => 'datetime',
         'kasubbag_approved_at' => 'datetime',
         'kabag_approved_at' => 'datetime',
+        'kabag_sdm_approved_at' => 'datetime',
         'admin_approved_at' => 'datetime',
         'cancelled_at' => 'datetime',
     ];
@@ -119,7 +136,7 @@ class MessBorrowing extends Model
             }
 
             if ($this->candidateApprovers($stage)->isNotEmpty()) {
-                $this->approval_status = 'Menunggu ' . ucfirst($stage);
+                $this->approval_status = 'Menunggu ' . self::STAGE_LABELS[$stage];
 
                 return;
             }
@@ -193,6 +210,7 @@ class MessBorrowing extends Model
             'Menunggu Staff' => 'staff',
             'Menunggu Kasubbag' => 'kasubbag',
             'Menunggu Kabag' => 'kabag',
+            'Menunggu Kabag SDM' => 'kabag_sdm',
             'Menunggu Admin' => 'admin',
             default => null,
         };
@@ -204,12 +222,35 @@ class MessBorrowing extends Model
             'staff' => 'Staff Approval',
             'kasubbag' => 'Kasubbag Approval',
             'kabag' => 'Kabag Approval',
+            'kabag_sdm' => 'Kabag Approval',
             'admin' => 'Admin',
         ];
         $targetRole = $roleMap[$stage] ?? null;
 
         if (! $targetRole) {
             return collect();
+        }
+
+        if (! $this->approvalStageActive($stage)) {
+            return collect();
+        }
+
+        // Tahap 'kabag_sdm' (final lintas-bagian, lihat README fitur ini) -
+        // approver-nya adalah Kabag Approval di BAGIAN YANG DITUNJUK lewat
+        // WorkflowSetting (Super Admin), bukan bagian pemohon. Kalau belum
+        // ada bagian yang ditunjuk, atau bagian pemohon KEBETULAN sama
+        // dengan bagian yang ditunjuk (Kabag-nya sudah approve di tahap
+        // 'kabag' biasa, jangan diminta approve dobel), tahap ini dianggap
+        // tidak punya kandidat sama sekali - otomatis ke-skip lewat
+        // mekanisme skip-tanpa-kandidat generik di settleApprovalStage().
+        if ($stage === 'kabag_sdm') {
+            $designated = WorkflowSetting::designatedDepartment();
+
+            if (! $designated || $designated->name === $this->peminjam_department) {
+                return collect();
+            }
+
+            return User::where('role', $targetRole)->where('department', $designated->name)->get();
         }
 
         $query = User::where('role', $targetRole);
@@ -229,6 +270,106 @@ class MessBorrowing extends Model
         }
 
         return $query->get();
+    }
+
+    /**
+     * Toggle "sedang cuti" per bagian/subbagian (lihat migration
+     * 2026_09_14_010000). Staff & Kasubbag discope ke SubDepartment (sama
+     * seperti candidateApprovers() di atas mensyaratkan department+
+     * sub_department cocok), Kabag cukup ke Department. Baris
+     * departments/sub_departments yang kebetulan tidak ketemu (mis. nama
+     * department snapshot sudah tidak ada lagi di master data) dianggap
+     * AKTIF (fail open) - toggle ini murni override manual, bukan syarat.
+     */
+    private function approvalStageActive(string $stage): bool
+    {
+        if (in_array($stage, ['staff', 'kasubbag'], true)) {
+            $subDepartment = SubDepartment::findByNames($this->peminjam_department, $this->peminjam_sub_department);
+
+            if (! $subDepartment) {
+                return true;
+            }
+
+            return $stage === 'staff' ? $subDepartment->staff_approval_active : $subDepartment->kasubbag_approval_active;
+        }
+
+        if ($stage === 'kabag') {
+            $department = Department::findByName($this->peminjam_department);
+
+            return $department ? $department->kabag_approval_active : true;
+        }
+
+        // 'kabag_sdm' pakai orang yang SAMA dengan tahap 'kabag' di bagian
+        // yang ditunjuk (lihat candidateApprovers()) - kalau mereka cuti
+        // untuk bagian sendiri, otomatis cuti juga untuk tahap lintas-
+        // bagian ini. Belum ada bagian ditunjuk -> fail open (biar
+        // candidateApprovers() yang menentukan skip lewat jalur lain).
+        if ($stage === 'kabag_sdm') {
+            $designated = WorkflowSetting::designatedDepartment();
+
+            return $designated ? $designated->kabag_approval_active : true;
+        }
+
+        return true;
+    }
+
+    /**
+     * Dipakai ApprovalController::index() - ANTRIAN aksi: cuma pengajuan
+     * yang SAAT INI menunggu tahap approver tsb (bukan seluruh riwayat
+     * bagian/subbagiannya). Kabag Approval di bagian yang ditunjuk sebagai
+     * SDM butuh lihat DUA hal sekaligus: 'Menunggu Kabag' di bagian sendiri
+     * (seperti biasa) DAN 'Menunggu Kabag SDM' dari bagian MANA PUN.
+     */
+    public function scopePendingApprovalFor($query, User $user)
+    {
+        return match ($user->role) {
+            'Staff Approval', 'Kasubbag Approval' => filled($user->department) && filled($user->sub_department)
+                ? $query->where('approval_status', 'Menunggu ' . self::STAGE_LABELS[$user->role === 'Staff Approval' ? 'staff' : 'kasubbag'])
+                    ->where('peminjam_department', $user->department)
+                    ->where('peminjam_sub_department', $user->sub_department)
+                : $query->whereRaw('1 = 0'),
+            'Kabag Approval' => filled($user->department)
+                ? $query->where(function ($q) use ($user) {
+                    $q->where('approval_status', 'Menunggu Kabag')->where('peminjam_department', $user->department);
+                    self::addKabagSdmVisibility($q, $user);
+                })
+                : $query->whereRaw('1 = 0'),
+            default => $query->whereRaw('1 = 0'),
+        };
+    }
+
+    /**
+     * Dipakai PeminjamanMessController::index() ("Data Peminjaman") -
+     * RIWAYAT penuh sesuai bagian/subbagian approver (semua status, bukan
+     * cuma yang sedang menunggu approve-nya - beda dari
+     * scopePendingApprovalFor() di atas). Tambahan: Kabag Approval di
+     * bagian yang ditunjuk SDM juga perlu lihat pengajuan lintas-bagian
+     * yang 'Menunggu Kabag SDM' (tidak akan pernah match filter department
+     * miliknya sendiri).
+     */
+    public function scopeVisibleToApprover($query, User $user)
+    {
+        return match ($user->role) {
+            'Staff Approval', 'Kasubbag Approval' => filled($user->department) && filled($user->sub_department)
+                ? $query->where('peminjam_department', $user->department)->where('peminjam_sub_department', $user->sub_department)
+                : $query->whereRaw('1 = 0'),
+            'Kabag Approval' => filled($user->department)
+                ? $query->where(function ($q) use ($user) {
+                    $q->where('peminjam_department', $user->department);
+                    self::addKabagSdmVisibility($q, $user);
+                })
+                : $query->whereRaw('1 = 0'),
+            default => $query->whereRaw('1 = 0'),
+        };
+    }
+
+    private static function addKabagSdmVisibility($query, User $user): void
+    {
+        $designated = WorkflowSetting::designatedDepartment();
+
+        if ($designated && $designated->name === $user->department) {
+            $query->orWhere('approval_status', 'Menunggu Kabag SDM');
+        }
     }
 
     public function bookable(): MorphTo
@@ -312,6 +453,11 @@ class MessBorrowing extends Model
     public function kabagApprover(): BelongsTo
     {
         return $this->belongsTo(User::class, 'kabag_approved_by');
+    }
+
+    public function kabagSdmApprover(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'kabag_sdm_approved_by');
     }
 
     public function adminApprover(): BelongsTo

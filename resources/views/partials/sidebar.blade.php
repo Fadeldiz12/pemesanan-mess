@@ -37,6 +37,12 @@
         ['type' => 'group', 'label' => 'Administrasi', 'icon' => 'ti ti-shield-lock', 'key' => 'administrasi', 'children' => [
             ['label' => 'Manajemen User', 'route' => 'users.index', 'can' => 'users'],
             ['label' => 'Management Akses', 'route' => 'role-access.index', 'can' => 'role-access'],
+            // 'workflow-settings' SENGAJA tidak didaftarkan di
+            // AccessMatrix::menus() sama sekali - supaya Admin tidak bisa
+            // self-grant lewat Management Akses. can() bypass total untuk
+            // Super Admin (lihat AccessMatrix::can()), jadi item ini
+            // otomatis cuma tampil untuk Super Admin tanpa logic tambahan.
+            ['label' => 'Approval Final SDM', 'route' => 'workflow-settings.edit', 'can' => 'workflow-settings'],
         ]],
     ])->map(function ($item) use ($can) {
         if (($item['type'] ?? 'link') === 'group') {

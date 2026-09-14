@@ -142,7 +142,7 @@ class ApprovalSkipStageTest extends TestCase
         $response->assertSee('rejectModal' . $peminjaman->id, false);
     }
 
-    public function test_approver_from_different_sub_department_does_not_get_action_buttons(): void
+    public function test_approver_from_different_sub_department_does_not_see_the_row(): void
     {
         $pengaju = $this->makeUser('Staff Approval', ['department' => 'Keuangan', 'sub_department' => 'Umum']);
         // Kandidat yang VALID di sub_department yang sama - wajib ada supaya
@@ -153,14 +153,29 @@ class ApprovalSkipStageTest extends TestCase
         $peminjaman = $this->makePeminjamanMenungguKasubbag($pengaju);
         $this->assertSame('Menunggu Kasubbag', $peminjaman->approval_status);
 
-        // Row tetap kelihatan (department sama), tapi tombol Setuju/Tolak
-        // TIDAK boleh muncul karena sub_department beda dari kandidat
-        // approver yang valid (candidateApprovers() mensyaratkan keduanya).
+        // Staff & Kasubbag Approval cuma boleh lihat pengajuan dari subbagian
+        // mereka sendiri (konsisten dengan ApprovalController::index()) -
+        // row dari subbagian lain di department yang sama TIDAK boleh muncul
+        // sama sekali di listing, bukan cuma tombol aksinya yang disembunyikan.
         $response = $this->actingAs($kasubbagLain)->get(route('peminjaman-mess.index'));
 
         $response->assertOk();
+        $response->assertDontSee($peminjaman->peminjaman_code);
+    }
+
+    public function test_kabag_sees_all_sub_departments_within_own_department(): void
+    {
+        $pengaju = $this->makeUser('Staff Approval', ['department' => 'Keuangan', 'sub_department' => 'Umum']);
+        $this->makeUser('Kasubbag Approval', ['department' => 'Keuangan', 'sub_department' => 'Umum']);
+        $kabag = $this->makeUser('Kabag Approval', ['department' => 'Keuangan', 'sub_department' => 'Lainnya']);
+        $peminjaman = $this->makePeminjamanMenungguKasubbag($pengaju);
+
+        // Kabag melihat SATU BAGIAN penuh (semua subbagian di dalamnya),
+        // beda dari Staff/Kasubbag yang cuma lihat subbagian sendiri.
+        $response = $this->actingAs($kabag)->get(route('peminjaman-mess.index'));
+
+        $response->assertOk();
         $response->assertSee($peminjaman->peminjaman_code);
-        $response->assertDontSee('rejectModal' . $peminjaman->id, false);
     }
 
     public function test_admin_sees_skip_button_on_index_even_when_candidate_exists(): void

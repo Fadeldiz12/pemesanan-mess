@@ -13,14 +13,29 @@ class Department extends Model
         'code',
         'name',
         'status',
+        'kabag_approval_active',
         'description',
         'created_by',
         'updated_by',
     ];
 
+    protected $casts = [
+        'kabag_approval_active' => 'boolean',
+    ];
+
     public function subDepartments(): HasMany
     {
         return $this->hasMany(SubDepartment::class);
+    }
+
+    /**
+     * Dipakai MessBorrowing::candidateApprovers() - peminjam_department di
+     * tabel peminjaman cuma snapshot string, bukan FK, jadi lookup toggle
+     * cuti Kabag-nya harus lewat nama.
+     */
+    public static function findByName(string $name): ?self
+    {
+        return self::where('name', $name)->first();
     }
 
     /**
