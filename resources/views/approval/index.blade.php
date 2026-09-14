@@ -33,6 +33,7 @@
                         'Menunggu Staff' => 'staff',
                         'Menunggu Kasubbag' => 'kasubbag',
                         'Menunggu Kabag' => 'kabag',
+                        'Menunggu Kabag SDM' => 'kabag',
                         default => null
                     };
                     
@@ -104,6 +105,7 @@
             'Menunggu Staff' => 'staff',
             'Menunggu Kasubbag' => 'kasubbag',
             'Menunggu Kabag' => 'kabag',
+            'Menunggu Kabag SDM' => 'kabag',
             default => null
         };
         

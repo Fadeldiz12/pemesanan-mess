@@ -20,6 +20,7 @@ use App\Http\Controllers\JabatanController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\MessReportController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\WorkflowSettingController;
 use App\Http\Middleware\ForceChangePassword;
 use App\Http\Middleware\UserIsActive;
 use Illuminate\Support\Facades\Route;
@@ -141,6 +142,11 @@ Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->gr
     Route::post('/role-access', [RoleAccessController::class, 'update'])->name('role-access.update');
     Route::post('/role-access/roles', [RoleAccessController::class, 'storeRole'])->name('role-access.roles.store');
     Route::delete('/role-access/roles/{role}', [RoleAccessController::class, 'destroyRole'])->name('role-access.roles.destroy');
+
+    // Bagian mana yang jadi approval final "Kabag SDM" - HANYA Super Admin
+    // (lihat WorkflowSettingController::authorizeSuperAdmin()).
+    Route::get('/workflow-settings', [WorkflowSettingController::class, 'edit'])->name('workflow-settings.edit');
+    Route::put('/workflow-settings', [WorkflowSettingController::class, 'update'])->name('workflow-settings.update');
 
     // Laporan & Export Data (Excel / PDF)
     Route::get('/mess-reports', [MessReportController::class, 'index'])->name('mess-reports.index');

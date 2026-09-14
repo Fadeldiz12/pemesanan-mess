@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\Department;
 use App\Models\MessBorrowing;
 use App\Models\SubDepartment;
+use App\Models\WorkflowSetting;
 use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -47,7 +48,19 @@ class ApproverAvailabilityController extends Controller
             "Approval Kabag untuk bagian {$department->name} " . ($department->kabag_approval_active ? 'diaktifkan' : 'dinonaktifkan (cuti)')
         );
 
-        $affected = $department->kabag_approval_active ? 0 : $this->sweepStage('kabag', $department->name, null);
+        $affected = 0;
+        if (! $department->kabag_approval_active) {
+            $affected += $this->sweepStage('kabag', $department->name, null);
+
+            // Kalau bagian yang di-nonaktifkan ini KEBETULAN sedang ditunjuk
+            // sebagai bagian SDM, pengajuan 'Menunggu Kabag SDM' dari bagian
+            // LAIN (tidak match peminjam_department bagian ini) juga macet -
+            // orangnya sama (Kabag Approval bagian ini), jadi harus ikut
+            // di-sweep, bukan cuma pengajuan dari bagian sendiri.
+            if (WorkflowSetting::designatedDepartment()?->name === $department->name) {
+                $affected += $this->sweepKabagSdm();
+            }
+        }
 
         return response()->json(['active' => $department->kabag_approval_active, 'affected' => $affected]);
     }
@@ -91,10 +104,26 @@ class ApproverAvailabilityController extends Controller
             return 0;
         }
 
-        $query = MessBorrowing::where('approval_status', 'Menunggu ' . ucfirst($stage))
+        $query = MessBorrowing::where('approval_status', 'Menunggu ' . MessBorrowing::STAGE_LABELS[$stage])
             ->where('peminjam_department', $departmentName)
             ->when($subDepartmentName !== null, fn ($q) => $q->where('peminjam_sub_department', $subDepartmentName));
 
+        return $this->settleEach($query);
+    }
+
+    /**
+     * Sweep tahap 'kabag_sdm' TANPA filter peminjam_department - beda dari
+     * sweepStage() di atas, karena tahap ini lintas-bagian (approver-nya
+     * bukan bagian pemohon, tapi bagian yang ditunjuk lewat WorkflowSetting,
+     * lihat MessBorrowing::candidateApprovers()).
+     */
+    private function sweepKabagSdm(): int
+    {
+        return $this->settleEach(MessBorrowing::where('approval_status', 'Menunggu ' . MessBorrowing::STAGE_LABELS['kabag_sdm']));
+    }
+
+    private function settleEach($query): int
+    {
         $affected = 0;
         foreach ($query->get() as $peminjaman) {
             $peminjaman->settleApprovalStage();

@@ -6,12 +6,13 @@
 @php
     $canCreate = \App\Support\AccessMatrix::can('peminjaman-mess', 'create');
     $isAdminView = in_array(auth()->user()->role ?? null, ['Admin', 'Super Admin'], true);
-    $stageLabel = ['staff' => 'Staff', 'kasubbag' => 'Kasubbag', 'kabag' => 'Kabag', 'admin' => 'Admin'];
+    $stageLabel = ['staff' => 'Staff', 'kasubbag' => 'Kasubbag', 'kabag' => 'Kabag', 'kabag_sdm' => 'Kabag SDM', 'admin' => 'Admin'];
 
     $statusColor = [
         'Menunggu Staff' => 'warning',
         'Menunggu Kasubbag' => 'warning',
         'Menunggu Kabag' => 'warning',
+        'Menunggu Kabag SDM' => 'warning',
         'Menunggu Admin' => 'warning',
         'Disetujui' => 'success',
         'Selesai' => 'secondary',
@@ -44,7 +45,7 @@
                         <th class="ps-3">Bagian / Subbagian</th>
                         <th class="text-center">Staff</th>
                         <th class="text-center">Kasubbag</th>
-                        <th class="text-center pe-3">Kabag</th>
+                        <th class="text-center pe-3" title="Kalau bagian ini sedang ditunjuk sebagai bagian SDM, tombol ini juga menonaktifkan approval Kabag SDM untuk pengajuan lintas-bagian">Kabag</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -152,7 +153,7 @@
                         // siapa yang BENAR-BENAR berwenang saat ini. Dipakai baik untuk kolom
                         // info (khusus Admin) maupun tombol Aksi (approver sesungguhnya).
                         $stage = $item->currentApprovalStage();
-                        $isStageApprovable = in_array($stage, ['staff', 'kasubbag', 'kabag'], true);
+                        $isStageApprovable = in_array($stage, ['staff', 'kasubbag', 'kabag', 'kabag_sdm'], true);
                         $waitingOn = $isStageApprovable ? $item->candidateApprovers($stage) : null;
 
                         // Tombol Setuju/Tolak: muncul untuk approver yang memang berwenang di
@@ -264,7 +265,7 @@
 @foreach($peminjamans as $item)
     @php
         $stage = $item->currentApprovalStage();
-        $isStageApprovable = in_array($stage, ['staff', 'kasubbag', 'kabag'], true);
+        $isStageApprovable = in_array($stage, ['staff', 'kasubbag', 'kabag', 'kabag_sdm'], true);
         $waitingOn = $isStageApprovable ? $item->candidateApprovers($stage) : null;
         $canActRow = $stage === 'admin'
             ? $isAdminView

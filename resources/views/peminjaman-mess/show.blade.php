@@ -4,13 +4,14 @@
 @section('header_title', 'Detail Peminjaman')
 
 @php
-    $stages = ['Staff', 'Kasubbag', 'Kabag', 'Admin'];
+    $stages = ['Staff', 'Kasubbag', 'Kabag', 'Kabag SDM', 'Admin'];
     $statusToStage = [
-        'Menunggu Staff' => 0, 
+        'Menunggu Staff' => 0,
         'Menunggu Kasubbag' => 1,
-        'Menunggu Kabag' => 2, 
-        'Menunggu Admin' => 3,
-        'Disetujui' => 4,
+        'Menunggu Kabag' => 2,
+        'Menunggu Kabag SDM' => 3,
+        'Menunggu Admin' => 4,
+        'Disetujui' => 5,
     ];
 
     $isFinal = in_array($peminjaman->peminjaman_status, ['Disetujui', 'Ditolak', 'Perlu Reschedule', 'Selesai', 'Dibatalkan']);
@@ -31,6 +32,7 @@
     if ($peminjaman->approval_status === 'Menunggu Staff' && $roleSaya === 'Staff Approval') $canAct = true;
     if ($peminjaman->approval_status === 'Menunggu Kasubbag' && $roleSaya === 'Kasubbag Approval') $canAct = true;
     if ($peminjaman->approval_status === 'Menunggu Kabag' && $roleSaya === 'Kabag Approval') $canAct = true;
+    if ($peminjaman->approval_status === 'Menunggu Kabag SDM' && $roleSaya === 'Kabag Approval') $canAct = true;
     if ($peminjaman->approval_status === 'Menunggu Admin' && $isAdmin) $canAct = true;
 
     // Info approver dinamis untuk Admin/Super Admin (siapa yang harus approve tahap
@@ -39,7 +41,7 @@
     // Nama variabel SENGAJA beda dari $stage yang dipakai @foreach($stages as $i =>
     // $stage) di stepper di bawah - kalau numpang nama $stage, nilainya keburu
     // ketiban jadi elemen TERAKHIR $stages ('Admin') begitu foreach itu selesai.
-    $approvalStageLabels = ['staff' => 'Staff', 'kasubbag' => 'Kasubbag', 'kabag' => 'Kabag'];
+    $approvalStageLabels = ['staff' => 'Staff', 'kasubbag' => 'Kasubbag', 'kabag' => 'Kabag', 'kabag_sdm' => 'Kabag SDM'];
     $waitingStage = $peminjaman->currentApprovalStage();
     $waitingOn = ($isAdmin && $waitingStage && array_key_exists($waitingStage, $approvalStageLabels)) ? $peminjaman->candidateApprovers($waitingStage) : null;
 @endphp

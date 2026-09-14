@@ -52,23 +52,14 @@ class PeminjamanMessController extends Controller
         }
 
         // Filter otomatis untuk melihat data sesuai Hak Akses (Role/Departemen).
-        // Staff & Kasubbag Approval cuma boleh lihat pengajuan dari subbagian
-        // mereka sendiri, Kabag Approval satu bagian penuh - konsisten dengan
-        // ApprovalController::index() & authorizeLevel() (kandidat approver
-        // memang disyaratkan department+sub_department cocok untuk kedua
-        // tahap itu, lihat MessBorrowing::candidateApprovers()). Sebelumnya
-        // Staff/Kasubbag ikut discope department SAJA seperti Kabag, jadi
-        // mereka bisa lihat pengajuan subbagian lain di department yang sama.
+        // Scoping-nya dipusatkan di MessBorrowing::scopeVisibleToApprover()
+        // (dipakai bareng oleh ApprovalController::index()) supaya tidak lagi
+        // bisa drift antara dua controller ini seperti yang pernah terjadi -
+        // termasuk visibilitas lintas-bagian untuk tahap 'kabag_sdm'.
         $user = $request->user();
         if ($user?->role !== 'Admin' && $user?->role !== 'Super Admin') {
-            if (in_array($user?->role, ['Staff Approval', 'Kasubbag Approval'])) {
-                filled($user->department) && filled($user->sub_department)
-                    ? $query->where('peminjam_department', $user->department)->where('peminjam_sub_department', $user->sub_department)
-                    : $query->whereRaw('1 = 0');
-            } elseif ($user?->role === 'Kabag Approval') {
-                filled($user->department)
-                    ? $query->where('peminjam_department', $user->department)
-                    : $query->whereRaw('1 = 0');
+            if (in_array($user?->role, ['Staff Approval', 'Kasubbag Approval', 'Kabag Approval'])) {
+                $query->visibleToApprover($user);
             } else {
                 $query->where('created_by', $user?->id);
             }
@@ -872,7 +863,7 @@ class PeminjamanMessController extends Controller
 
         $stage = $this->currentStage($peminjaman);
 
-        if (! in_array($stage, ['staff', 'kasubbag', 'kabag'], true)) {
+        if (! in_array($stage, ['staff', 'kasubbag', 'kabag', 'kabag_sdm'], true)) {
             return response()->json(['message' => 'Tahap ini tidak dapat dilewati.'], 422);
         }
 
@@ -897,7 +888,8 @@ class PeminjamanMessController extends Controller
         return match ($currentStage) {
             'staff' => 'Menunggu Kasubbag',
             'kasubbag' => 'Menunggu Kabag',
-            'kabag' => 'Menunggu Admin',
+            'kabag' => 'Menunggu Kabag SDM',
+            'kabag_sdm' => 'Menunggu Admin',
             'admin' => 'Disetujui',
             default => 'Disetujui',
         };
