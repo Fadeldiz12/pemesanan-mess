@@ -23,6 +23,84 @@
 @endphp
 
 @section('content')
+@if($isAdminView && $departments->isNotEmpty())
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+        <h6 class="mb-0 fw-semibold"><i class="ti ti-clock-edit me-1 text-warning"></i>Ketersediaan Approver</h6>
+        <button class="btn btn-sm btn-light border" type="button" data-bs-toggle="collapse" data-bs-target="#approverAvailabilityPanel">
+            <i class="ti ti-chevron-down"></i>
+        </button>
+    </div>
+    <div id="approverAvailabilityPanel" class="collapse">
+        <p class="text-muted small px-3 pt-3 mb-2">
+            Matikan tombol tahap tertentu kalau approver-nya sedang cuti/tidak bisa memproses.
+            Semua pengajuan yang sedang macet menunggu tahap itu di bagian/subbagian tsb langsung
+            dilewati otomatis, bukan cuma pengajuan baru.
+        </p>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">Bagian / Subbagian</th>
+                        <th class="text-center">Staff</th>
+                        <th class="text-center">Kasubbag</th>
+                        <th class="text-center pe-3">Kabag</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($departments as $department)
+                        <tr class="table-light">
+                            <td class="ps-3 fw-semibold">{{ $department->name }}</td>
+                            <td class="text-center text-muted">&mdash;</td>
+                            <td class="text-center text-muted">&mdash;</td>
+                            <td class="text-center pe-3">
+                                <form class="ajax-row-form d-inline" method="post" action="{{ route('departments.toggle-kabag', $department) }}">
+                                    @csrf
+                                    <button type="submit"
+                                        class="btn btn-sm {{ $department->kabag_approval_active ? 'btn-outline-success' : 'btn-danger' }} btn-save"
+                                        title="{{ $department->kabag_approval_active ? 'Aktif - klik untuk tandai cuti' : 'Sedang cuti - klik untuk aktifkan lagi' }}"
+                                        onclick="return confirm('{{ $department->kabag_approval_active ? 'Tandai Kabag ' . $department->name . ' sedang cuti? Pengajuan yang macet menunggu Kabag di bagian ini akan langsung dilewati.' : 'Aktifkan lagi approval Kabag ' . $department->name . '?' }}')">
+                                        <i class="ti {{ $department->kabag_approval_active ? 'ti-check' : 'ti-x' }} me-1"></i>{{ $department->kabag_approval_active ? 'Aktif' : 'Cuti' }}
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        @foreach($department->subDepartments as $sub)
+                            <tr>
+                                <td class="ps-4 text-muted">&#8618; {{ $sub->name }}</td>
+                                <td class="text-center">
+                                    <form class="ajax-row-form d-inline" method="post" action="{{ route('sub-departments.toggle-staff', $sub) }}">
+                                        @csrf
+                                        <button type="submit"
+                                            class="btn btn-sm {{ $sub->staff_approval_active ? 'btn-outline-success' : 'btn-danger' }} btn-save"
+                                            title="{{ $sub->staff_approval_active ? 'Aktif - klik untuk tandai cuti' : 'Sedang cuti - klik untuk aktifkan lagi' }}"
+                                            onclick="return confirm('{{ $sub->staff_approval_active ? 'Tandai Staff ' . $sub->name . ' sedang cuti? Pengajuan yang macet menunggu Staff di subbagian ini akan langsung dilewati.' : 'Aktifkan lagi approval Staff ' . $sub->name . '?' }}')">
+                                            <i class="ti {{ $sub->staff_approval_active ? 'ti-check' : 'ti-x' }} me-1"></i>{{ $sub->staff_approval_active ? 'Aktif' : 'Cuti' }}
+                                        </button>
+                                    </form>
+                                </td>
+                                <td class="text-center">
+                                    <form class="ajax-row-form d-inline" method="post" action="{{ route('sub-departments.toggle-kasubbag', $sub) }}">
+                                        @csrf
+                                        <button type="submit"
+                                            class="btn btn-sm {{ $sub->kasubbag_approval_active ? 'btn-outline-success' : 'btn-danger' }} btn-save"
+                                            title="{{ $sub->kasubbag_approval_active ? 'Aktif - klik untuk tandai cuti' : 'Sedang cuti - klik untuk aktifkan lagi' }}"
+                                            onclick="return confirm('{{ $sub->kasubbag_approval_active ? 'Tandai Kasubbag ' . $sub->name . ' sedang cuti? Pengajuan yang macet menunggu Kasubbag di subbagian ini akan langsung dilewati.' : 'Aktifkan lagi approval Kasubbag ' . $sub->name . '?' }}')">
+                                            <i class="ti {{ $sub->kasubbag_approval_active ? 'ti-check' : 'ti-x' }} me-1"></i>{{ $sub->kasubbag_approval_active ? 'Aktif' : 'Cuti' }}
+                                        </button>
+                                    </form>
+                                </td>
+                                <td class="text-center pe-3 text-muted">&mdash;</td>
+                            </tr>
+                        @endforeach
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+@endif
+
 <div class="card border-0 shadow-sm">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3 flex-wrap gap-2">
         <h5 class="mb-0 fw-semibold">Data Peminjaman</h5>

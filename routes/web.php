@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ApprovalController;
+use App\Http\Controllers\ApproverAvailabilityController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\ExpenseController;
@@ -87,6 +88,13 @@ Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->gr
 
     // Lewati tahap approval yang macet karena tidak ada approver tersedia (mis. sedang cuti)
     Route::post('/peminjaman-mess/{peminjaman}/skip-stage', [PeminjamanMessController::class, 'skipStage'])->name('peminjaman.skip-stage');
+
+    // Ketersediaan Approver per Bagian/Subbagian (mis. Kasubbag sedang cuti) -
+    // toggle di sini otomatis melewati SEMUA pengajuan yang macet di tahap
+    // itu, beda dari skip-stage di atas yang cuma untuk satu pengajuan.
+    Route::post('/sub-departments/{subDepartment}/toggle-staff', [ApproverAvailabilityController::class, 'toggleStaff'])->name('sub-departments.toggle-staff');
+    Route::post('/sub-departments/{subDepartment}/toggle-kasubbag', [ApproverAvailabilityController::class, 'toggleKasubbag'])->name('sub-departments.toggle-kasubbag');
+    Route::post('/departments/{department}/toggle-kabag', [ApproverAvailabilityController::class, 'toggleKabag'])->name('departments.toggle-kabag');
 
     // Halaman List & Aksi Approval Dedicated (ApprovalController)
     Route::get('/approval', [ApprovalController::class, 'index'])->name('approval.index');

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\Bungalow;
+use App\Models\Department;
 use App\Models\Jabatan;
 use App\Models\Kamar;
 use App\Models\Mess;
@@ -50,11 +51,24 @@ class PeminjamanMessController extends Controller
             });
         }
 
-        // Filter otomatis untuk melihat data sesuai Hak Akses (Role/Departemen)
+        // Filter otomatis untuk melihat data sesuai Hak Akses (Role/Departemen).
+        // Staff & Kasubbag Approval cuma boleh lihat pengajuan dari subbagian
+        // mereka sendiri, Kabag Approval satu bagian penuh - konsisten dengan
+        // ApprovalController::index() & authorizeLevel() (kandidat approver
+        // memang disyaratkan department+sub_department cocok untuk kedua
+        // tahap itu, lihat MessBorrowing::candidateApprovers()). Sebelumnya
+        // Staff/Kasubbag ikut discope department SAJA seperti Kabag, jadi
+        // mereka bisa lihat pengajuan subbagian lain di department yang sama.
         $user = $request->user();
         if ($user?->role !== 'Admin' && $user?->role !== 'Super Admin') {
-            if (in_array($user?->role, ['Staff Approval', 'Kasubbag Approval', 'Kabag Approval'])) {
-                $query->where('peminjam_department', $user->department);
+            if (in_array($user?->role, ['Staff Approval', 'Kasubbag Approval'])) {
+                filled($user->department) && filled($user->sub_department)
+                    ? $query->where('peminjam_department', $user->department)->where('peminjam_sub_department', $user->sub_department)
+                    : $query->whereRaw('1 = 0');
+            } elseif ($user?->role === 'Kabag Approval') {
+                filled($user->department)
+                    ? $query->where('peminjam_department', $user->department)
+                    : $query->whereRaw('1 = 0');
             } else {
                 $query->where('created_by', $user?->id);
             }
@@ -65,7 +79,13 @@ class PeminjamanMessController extends Controller
         // (created_at) yang seharusnya dipakai untuk "pengajuan terbaru duluan".
         $peminjamans = $query->latest()->paginate(10);
 
-        return view('peminjaman-mess.index', compact('peminjamans'));
+        // Panel "Ketersediaan Approver" (toggle Staff/Kasubbag/Kabag per
+        // bagian/subbagian, lihat ApproverAvailabilityController) - cuma
+        // relevan & ditampilkan untuk Admin/Super Admin.
+        $isAdminView = in_array($user?->role, ['Admin', 'Super Admin'], true);
+        $departments = $isAdminView ? Department::with('subDepartments')->orderBy('name')->get() : collect();
+
+        return view('peminjaman-mess.index', compact('peminjamans', 'departments'));
     }
 
     /**

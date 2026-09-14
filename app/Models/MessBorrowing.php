@@ -212,6 +212,10 @@ class MessBorrowing extends Model
             return collect();
         }
 
+        if (! $this->approvalStageActive($stage)) {
+            return collect();
+        }
+
         $query = User::where('role', $targetRole);
 
         // 'sub_department' cuma string bebas di tabel users (bukan FK ke
@@ -229,6 +233,36 @@ class MessBorrowing extends Model
         }
 
         return $query->get();
+    }
+
+    /**
+     * Toggle "sedang cuti" per bagian/subbagian (lihat migration
+     * 2026_09_14_010000). Staff & Kasubbag discope ke SubDepartment (sama
+     * seperti candidateApprovers() di atas mensyaratkan department+
+     * sub_department cocok), Kabag cukup ke Department. Baris
+     * departments/sub_departments yang kebetulan tidak ketemu (mis. nama
+     * department snapshot sudah tidak ada lagi di master data) dianggap
+     * AKTIF (fail open) - toggle ini murni override manual, bukan syarat.
+     */
+    private function approvalStageActive(string $stage): bool
+    {
+        if (in_array($stage, ['staff', 'kasubbag'], true)) {
+            $subDepartment = SubDepartment::findByNames($this->peminjam_department, $this->peminjam_sub_department);
+
+            if (! $subDepartment) {
+                return true;
+            }
+
+            return $stage === 'staff' ? $subDepartment->staff_approval_active : $subDepartment->kasubbag_approval_active;
+        }
+
+        if ($stage === 'kabag') {
+            $department = Department::findByName($this->peminjam_department);
+
+            return $department ? $department->kabag_approval_active : true;
+        }
+
+        return true;
     }
 
     public function bookable(): MorphTo
