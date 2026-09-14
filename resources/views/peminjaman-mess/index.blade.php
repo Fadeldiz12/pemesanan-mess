@@ -69,11 +69,27 @@
                         $displayStatus = $item->peminjaman_status === 'Selesai' ? 'Selesai' : $item->approval_status;
                         $badgeColor = $statusColor[$displayStatus] ?? 'secondary';
 
-                        // Info approver dinamis (khusus tampilan Admin/Super Admin di halaman "pengajuan semua"):
-                        // dihitung ulang tiap request dari candidateApprovers() supaya selalu mencerminkan
-                        // siapa yang BENAR-BENAR tersedia saat ini (mis. berkurang kalau ada yang sedang cuti).
-                        $stage = $isAdminView ? $item->currentApprovalStage() : null;
-                        $waitingOn = ($stage && in_array($stage, ['staff', 'kasubbag', 'kabag'], true)) ? $item->candidateApprovers($stage) : null;
+                        // Tahap approval saat ini & kandidat approver-nya - dihitung ulang
+                        // tiap request dari candidateApprovers() supaya selalu mencerminkan
+                        // siapa yang BENAR-BENAR berwenang saat ini. Dipakai baik untuk kolom
+                        // info (khusus Admin) maupun tombol Aksi (approver sesungguhnya).
+                        $stage = $item->currentApprovalStage();
+                        $isStageApprovable = in_array($stage, ['staff', 'kasubbag', 'kabag'], true);
+                        $waitingOn = $isStageApprovable ? $item->candidateApprovers($stage) : null;
+
+                        // Tombol Setuju/Tolak: muncul untuk approver yang memang berwenang di
+                        // tahap ini (kandidat cocok role+department+subdepartment, sama seperti
+                        // pengecekan di PeminjamanMessController::assertIsApproverForStage()),
+                        // atau untuk Admin/Super Admin di tahap final 'admin'.
+                        $canActRow = $stage === 'admin'
+                            ? $isAdminView
+                            : ($isStageApprovable && $waitingOn->pluck('id')->contains(auth()->id()));
+
+                        // Tombol "Lewati Tahap Ini": override manual Admin (mis. approver
+                        // sedang cuti) - selalu tersedia selama masih di tahap Staff/
+                        // Kasubbag/Kabag, TIDAK digantungkan ke kandidat kosong/tidaknya
+                        // (lihat PeminjamanMessController::skipStage()).
+                        $canSkipRow = $isAdminView && $isStageApprovable;
                     @endphp
                     <tr>
                         <td class="toggle-cell ps-4" data-label="Kode">
@@ -107,8 +123,8 @@
                             <td data-label="Menunggu Approval">
                                 @if(is_null($stage))
                                     <span class="text-muted small">-</span>
-                                @elseif($waitingOn === null)
-                                    {{-- stage 'admin': validasi akhir memang wewenang Admin langsung, bukan lewat skip --}}
+                                @elseif(!$isStageApprovable)
+                                    {{-- stage 'admin': validasi akhir memang wewenang Admin langsung --}}
                                     <span class="badge bg-info-subtle text-info border border-info-subtle">Menunggu {{ $stageLabel[$stage] }} (Anda)</span>
                                 @elseif($waitingOn->isNotEmpty())
                                     <span class="badge bg-warning-subtle text-warning border border-warning-subtle d-block mb-1">Menunggu {{ $stageLabel[$stage] }}</span>
@@ -117,20 +133,32 @@
                                     <span class="badge bg-danger-subtle text-danger border border-danger-subtle d-block mb-1">
                                         <i class="ti ti-alert-triangle me-1"></i>Tidak ada approver {{ $stageLabel[$stage] }} tersedia
                                     </span>
-                                    <span class="text-muted small d-block mb-1">Kemungkinan sedang cuti.</span>
-                                    <form method="post" class="skip-stage-form" action="{{ route('peminjaman.skip-stage', $item) }}">
-                                        @csrf
-                                        <button type="submit" class="btn btn-sm btn-outline-danger btn-save" onclick="return confirm('Lewati tahap {{ $stageLabel[$stage] }} untuk {{ $item->peminjaman_code }} karena tidak ada approver yang tersedia?')">
-                                            <i class="ti ti-player-skip-forward me-1"></i>Lewati Tahap Ini
-                                        </button>
-                                    </form>
+                                    <span class="text-muted small d-block">Kemungkinan sedang cuti - gunakan "Lewati Tahap Ini".</span>
                                 @endif
                             </td>
                         @endif
                         <td class="action-data text-center pe-4" data-label="Aksi">
-                            <a href="{{ route('peminjaman.show', $item) }}" class="btn btn-light btn-sm shadow-sm border">
-                                <i class="ti ti-eye me-1 text-primary"></i>Detail
-                            </a>
+                            <div class="d-flex gap-1 justify-content-center flex-wrap">
+                                <a href="{{ route('peminjaman.show', $item) }}" class="btn btn-light btn-sm shadow-sm border" title="Detail">
+                                    <i class="ti ti-eye text-primary"></i>
+                                </a>
+                                @if($canActRow)
+                                    <form class="ajax-row-form d-inline" method="post" action="{{ route('peminjaman.approve', $item) }}">
+                                        @csrf
+                                        <button type="submit" class="btn btn-success btn-sm shadow-sm btn-save" title="Setujui" onclick="return confirm('Setujui pengajuan {{ $item->peminjaman_code }}?')">
+                                            <i class="ti ti-thumb-up"></i>
+                                        </button>
+                                    </form>
+                                    <button type="button" class="btn btn-outline-danger btn-sm shadow-sm" title="Tolak" data-bs-toggle="modal" data-bs-target="#rejectModal{{ $item->id }}">
+                                        <i class="ti ti-thumb-down"></i>
+                                    </button>
+                                @endif
+                                @if($canSkipRow)
+                                    <button type="button" class="btn btn-outline-warning btn-sm shadow-sm" title="Lewati Tahap Ini" data-bs-toggle="modal" data-bs-target="#skipModal{{ $item->id }}">
+                                        <i class="ti ti-player-skip-forward"></i>
+                                    </button>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                 @empty
@@ -152,20 +180,83 @@
     @endif
 </div>
 
-@if($isAdminView)
+{{-- Modal Tolak & Lewati Tahap - dipisah per baris (mengikuti pola modal per-baris
+     di resources/views/approval/index.blade.php) supaya alasan wajib diisi bisa
+     dikirim ke endpoint yang tepat untuk peminjaman yang tepat. --}}
+@foreach($peminjamans as $item)
+    @php
+        $stage = $item->currentApprovalStage();
+        $isStageApprovable = in_array($stage, ['staff', 'kasubbag', 'kabag'], true);
+        $waitingOn = $isStageApprovable ? $item->candidateApprovers($stage) : null;
+        $canActRow = $stage === 'admin'
+            ? $isAdminView
+            : ($isStageApprovable && $waitingOn->pluck('id')->contains(auth()->id()));
+        $canSkipRow = $isAdminView && $isStageApprovable;
+    @endphp
+
+    @if($canActRow)
+    <div class="modal fade" id="rejectModal{{ $item->id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <form class="ajax-row-form" method="post" action="{{ route('peminjaman.reject', $item) }}">
+                @csrf
+                <div class="modal-content border-danger">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title text-white">Tolak Pengajuan {{ $item->peminjaman_code }}</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body text-start">
+                        <label class="form-label fw-medium text-danger">Alasan Penolakan (Wajib)</label>
+                        <textarea name="alasan" class="form-control border-danger" rows="3" required placeholder="Masukkan alasan kenapa pengajuan ini ditolak..."></textarea>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-danger btn-save"><i class="ti ti-thumb-down me-1"></i>Kirim Penolakan</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    @endif
+
+    @if($canSkipRow)
+    <div class="modal fade" id="skipModal{{ $item->id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <form class="ajax-row-form" method="post" action="{{ route('peminjaman.skip-stage', $item) }}">
+                @csrf
+                <div class="modal-content border-warning">
+                    <div class="modal-header bg-warning">
+                        <h5 class="modal-title">Lewati Tahap {{ $stageLabel[$stage] ?? '' }} - {{ $item->peminjaman_code }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body text-start">
+                        <p class="small text-secondary">Gunakan ini kalau approver tahap {{ $stageLabel[$stage] ?? '' }} tidak bisa memproses pengajuan ini (mis. sedang cuti). Tahap ini akan ditandai selesai secara manual dan pengajuan dilanjutkan ke tahap berikutnya.</p>
+                        <label class="form-label fw-medium">Alasan Melewati Tahap (Wajib)</label>
+                        <textarea name="alasan" class="form-control" rows="3" required placeholder="Contoh: Kasubbag sedang cuti sampai tanggal..."></textarea>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-warning btn-save"><i class="ti ti-player-skip-forward me-1"></i>Lewati Tahap Ini</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    @endif
+@endforeach
+
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         document.body.addEventListener('submit', function (event) {
-            if (!event.target || !event.target.classList.contains('skip-stage-form')) return;
+            if (!event.target || !event.target.classList.contains('ajax-row-form')) return;
 
             event.preventDefault();
 
             const form = event.target;
-            const btn = form.querySelector('.btn-save');
+            const btn = form.querySelector('.btn-save') || form.querySelector('button[type="submit"]');
             const originalText = btn.innerHTML;
 
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Memproses...';
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
             btn.disabled = true;
 
             fetch(form.getAttribute('action'), {
@@ -179,7 +270,8 @@
             .then(async response => {
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    alert(data.message || 'Gagal melewati tahap approval.');
+                    const errText = data.errors ? Object.values(data.errors)[0][0] : (data.message || 'Gagal memproses aksi.');
+                    alert(errText);
                     btn.innerHTML = originalText;
                     btn.disabled = false;
                     return;
@@ -195,5 +287,4 @@
     });
 </script>
 @endpush
-@endif
 @endsection

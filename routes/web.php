@@ -128,7 +128,6 @@ Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->gr
     // Manajemen User & Management Akses (Administrasi)
     Route::resource('users', UserController::class)->except(['show']);
     Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
-    Route::post('/users/{user}/toggle-leave', [UserController::class, 'toggleLeave'])->name('users.toggle-leave');
 
     Route::get('/role-access', [RoleAccessController::class, 'index'])->name('role-access.index');
     Route::post('/role-access', [RoleAccessController::class, 'update'])->name('role-access.update');

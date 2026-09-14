@@ -51,6 +51,11 @@ class GuestBookingWizardTest extends TestCase
         UnitPrice::create(['bookable_type' => Kamar::class, 'bookable_id' => $kamar->id, 'jabatan_id' => $kabag->id, 'harga' => 250000]);
 
         $admin = $this->makeUser('Staff Approval');
+        // Wajib ada kandidat Kasubbag Approval di department/sub_department yang
+        // sama supaya assertion kasubbag_approval_status di bawah benar-benar
+        // menguji "tahap Kasubbag tetap menunggu" - bukan tahap itu ke-skip
+        // karena kebetulan tidak ada kandidat approver sama sekali.
+        $this->makeUser('Kasubbag Approval');
 
         $step1 = [
             'nama' => 'Budi Tamu',
