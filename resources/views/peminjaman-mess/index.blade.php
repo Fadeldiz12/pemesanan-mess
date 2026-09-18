@@ -24,6 +24,14 @@
 @endphp
 
 @section('content')
+@if($isAdminView && !$designatedDepartment)
+    <div class="alert alert-warning d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div><i class="ti ti-alert-triangle me-1"></i>Tahap approval Kabag SDM belum diatur - pengajuan langsung lanjut dari Kabag ke Admin.</div>
+        @if((auth()->user()->role ?? null) === 'Super Admin')
+            <a href="{{ route('workflow-settings.edit') }}" class="btn btn-sm btn-warning">Atur Sekarang</a>
+        @endif
+    </div>
+@endif
 @if($isAdminView && $departments->isNotEmpty())
 <div class="card border-0 shadow-sm mb-3">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
@@ -51,7 +59,12 @@
                 <tbody>
                     @foreach($departments as $department)
                         <tr class="table-light">
-                            <td class="ps-3 fw-semibold">{{ $department->name }}</td>
+                            <td class="ps-3 fw-semibold">
+                                {{ $department->name }}
+                                @if($designatedDepartment && $designatedDepartment->id === $department->id)
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" title="Bagian ini ditunjuk sebagai approver Kabag SDM untuk pengajuan lintas-bagian">SDM</span>
+                                @endif
+                            </td>
                             <td class="text-center text-muted">&mdash;</td>
                             <td class="text-center text-muted">&mdash;</td>
                             <td class="text-center pe-3">
@@ -148,27 +161,14 @@
                         $displayStatus = $item->peminjaman_status === 'Selesai' ? 'Selesai' : $item->approval_status;
                         $badgeColor = $statusColor[$displayStatus] ?? 'secondary';
 
-                        // Tahap approval saat ini & kandidat approver-nya - dihitung ulang
-                        // tiap request dari candidateApprovers() supaya selalu mencerminkan
-                        // siapa yang BENAR-BENAR berwenang saat ini. Dipakai baik untuk kolom
-                        // info (khusus Admin) maupun tombol Aksi (approver sesungguhnya).
-                        $stage = $item->currentApprovalStage();
-                        $isStageApprovable = in_array($stage, ['staff', 'kasubbag', 'kabag', 'kabag_sdm'], true);
-                        $waitingOn = $isStageApprovable ? $item->candidateApprovers($stage) : null;
-
-                        // Tombol Setuju/Tolak: muncul untuk approver yang memang berwenang di
-                        // tahap ini (kandidat cocok role+department+subdepartment, sama seperti
-                        // pengecekan di PeminjamanMessController::assertIsApproverForStage()),
-                        // atau untuk Admin/Super Admin di tahap final 'admin'.
-                        $canActRow = $stage === 'admin'
-                            ? $isAdminView
-                            : ($isStageApprovable && $waitingOn->pluck('id')->contains(auth()->id()));
-
-                        // Tombol "Lewati Tahap Ini": override manual Admin (mis. approver
-                        // sedang cuti) - selalu tersedia selama masih di tahap Staff/
-                        // Kasubbag/Kabag, TIDAK digantungkan ke kandidat kosong/tidaknya
-                        // (lihat PeminjamanMessController::skipStage()).
-                        $canSkipRow = $isAdminView && $isStageApprovable;
+                        // Tahap approval, kandidat approver, & hak aksi baris ini sudah
+                        // dihitung SEKALI di PeminjamanMessController::index() (bukan di
+                        // sini) - dipakai bareng oleh kolom info (khusus Admin), tombol
+                        // Aksi, dan blok modal Tolak/Lewati-Tahap di bawah halaman ini,
+                        // supaya candidateApprovers() (termasuk lookup WorkflowSetting
+                        // untuk tahap kabag_sdm) tidak dipanggil berulang per baris.
+                        $rowMeta = $approvalMeta[$item->id];
+                        extract($rowMeta);
                     @endphp
                     <tr>
                         <td class="toggle-cell ps-4" data-label="Kode">
@@ -264,13 +264,10 @@
      dikirim ke endpoint yang tepat untuk peminjaman yang tepat. --}}
 @foreach($peminjamans as $item)
     @php
-        $stage = $item->currentApprovalStage();
-        $isStageApprovable = in_array($stage, ['staff', 'kasubbag', 'kabag', 'kabag_sdm'], true);
-        $waitingOn = $isStageApprovable ? $item->candidateApprovers($stage) : null;
-        $canActRow = $stage === 'admin'
-            ? $isAdminView
-            : ($isStageApprovable && $waitingOn->pluck('id')->contains(auth()->id()));
-        $canSkipRow = $isAdminView && $isStageApprovable;
+        // Sama seperti loop tabel utama di atas - baca dari $approvalMeta yang
+        // sudah dihitung sekali di controller, bukan dihitung ulang di sini.
+        $rowMeta = $approvalMeta[$item->id];
+        extract($rowMeta);
     @endphp
 
     @if($canActRow)

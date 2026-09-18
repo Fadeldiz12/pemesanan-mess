@@ -222,4 +222,32 @@ class KabagSdmStageTest extends TestCase
         $this->assertSame('Menunggu Kabag SDM', $peminjaman->approval_status);
         $this->assertSame('kabag_sdm', $peminjaman->currentApprovalStage());
     }
+
+    public function test_index_shows_undesignated_banner_and_super_admin_can_see_action_link(): void
+    {
+        $admin = $this->makeUser('Admin');
+        $superAdmin = $this->makeUser('Super Admin');
+
+        $response = $this->actingAs($admin)->get(route('peminjaman-mess.index'));
+        $response->assertOk();
+        $response->assertSee('Tahap approval Kabag SDM belum diatur');
+        $response->assertDontSee('Atur Sekarang');
+
+        $response2 = $this->actingAs($superAdmin)->get(route('peminjaman-mess.index'));
+        $response2->assertOk();
+        $response2->assertSee('Tahap approval Kabag SDM belum diatur');
+        $response2->assertSee('Atur Sekarang');
+    }
+
+    public function test_index_shows_sdm_badge_and_hides_undesignated_banner_once_designated(): void
+    {
+        $this->designate('SDM');
+        $admin = $this->makeUser('Admin');
+
+        $response = $this->actingAs($admin)->get(route('peminjaman-mess.index'));
+
+        $response->assertOk();
+        $response->assertDontSee('Tahap approval Kabag SDM belum diatur');
+        $response->assertSee('>SDM<', false);
+    }
 }

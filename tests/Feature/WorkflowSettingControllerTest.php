@@ -65,4 +65,37 @@ class WorkflowSettingControllerTest extends TestCase
 
         $this->assertNull(WorkflowSetting::current()->final_approver_department_id);
     }
+
+    public function test_dropdown_still_includes_designated_department_when_deactivated(): void
+    {
+        // Regresi: sebelum diperbaiki, edit() cuma me-load bagian 'Aktif',
+        // jadi bagian yang sedang ditunjuk tapi sudah dinonaktifkan (lewat
+        // jalur lain, mis. data lama) hilang dari dropdown - Super Admin
+        // bisa gak sadar menghapus penunjukan cuma dengan klik Simpan.
+        $department = Department::create(['code' => 'BAG-SDM', 'name' => 'SDM', 'status' => 'Tidak Aktif']);
+        WorkflowSetting::current()->update(['final_approver_department_id' => $department->id]);
+
+        $superAdmin = $this->makeUser('Super Admin');
+        $response = $this->actingAs($superAdmin)->get(route('workflow-settings.edit'));
+
+        $response->assertOk();
+        $response->assertSee('SDM (Tidak Aktif)');
+        $response->assertSee('sedang ditunjuk');
+    }
+
+    public function test_settings_page_shows_recent_change_history(): void
+    {
+        $department = Department::create(['code' => 'BAG-SDM', 'name' => 'SDM', 'status' => 'Aktif']);
+        $superAdmin = $this->makeUser('Super Admin');
+
+        $this->actingAs($superAdmin)->put(route('workflow-settings.update'), [
+            'final_approver_department_id' => $department->id,
+        ]);
+
+        $response = $this->actingAs($superAdmin)->get(route('workflow-settings.edit'));
+
+        $response->assertOk();
+        $response->assertSee('Bagian approval final Kabag SDM diubah ke: SDM');
+        $response->assertSee($superAdmin->name);
+    }
 }

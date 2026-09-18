@@ -22,10 +22,21 @@ class WorkflowSettingController extends Controller
     {
         $this->authorizeSuperAdmin($request);
 
-        $departments = Department::where('status', 'Aktif')->orderBy('name')->get();
         $setting = WorkflowSetting::current();
 
-        return view('workflow-settings.edit', compact('departments', 'setting'));
+        // Bagian yang SEDANG ditunjuk tetap disertakan meski statusnya
+        // "Tidak Aktif" (ditandai di view) - kalau tidak, dropdown-nya
+        // diam-diam jatuh ke "-- Belum ditentukan --" padahal sistem masih
+        // benar-benar memakainya sebagai approver Kabag SDM, dan Super
+        // Admin bisa gak sadar menghapus penunjukan cuma dengan klik Simpan.
+        $departments = Department::where('status', 'Aktif')
+            ->when($setting->final_approver_department_id, fn ($q, $id) => $q->orWhere('id', $id))
+            ->orderBy('name')
+            ->get();
+
+        $history = ActivityLog::where('module', 'workflow_settings')->latest()->limit(10)->get();
+
+        return view('workflow-settings.edit', compact('departments', 'setting', 'history'));
     }
 
     public function update(Request $request)

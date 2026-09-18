@@ -9,6 +9,7 @@ use App\Models\Jabatan;
 use App\Models\Kamar;
 use App\Models\Mess;
 use App\Models\MessBorrowing;
+use App\Models\WorkflowSetting;
 use App\Support\AccessMatrix;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -75,8 +76,26 @@ class PeminjamanMessController extends Controller
         // relevan & ditampilkan untuk Admin/Super Admin.
         $isAdminView = in_array($user?->role, ['Admin', 'Super Admin'], true);
         $departments = $isAdminView ? Department::with('subDepartments')->orderBy('name')->get() : collect();
+        $designatedDepartment = $isAdminView ? WorkflowSetting::designatedDepartment() : null;
 
-        return view('peminjaman-mess.index', compact('peminjamans', 'departments'));
+        // Info tahap approval per baris (stage/kandidat/hak aksi) dihitung
+        // SEKALI di sini, bukan diulang di dua tempat terpisah di view
+        // (kolom tabel utama & blok modal Tolak/Lewati-Tahap) - sebelumnya
+        // candidateApprovers() (termasuk lookup WorkflowSetting untuk tahap
+        // kabag_sdm) dipanggil 2x per baris.
+        $approvalMeta = $peminjamans->getCollection()->mapWithKeys(function (MessBorrowing $item) use ($isAdminView, $user) {
+            $stage = $item->currentApprovalStage();
+            $isStageApprovable = in_array($stage, ['staff', 'kasubbag', 'kabag', 'kabag_sdm'], true);
+            $waitingOn = $isStageApprovable ? $item->candidateApprovers($stage) : null;
+            $canActRow = $stage === 'admin'
+                ? $isAdminView
+                : ($isStageApprovable && $waitingOn->pluck('id')->contains($user?->id));
+            $canSkipRow = $isAdminView && $isStageApprovable;
+
+            return [$item->id => compact('stage', 'isStageApprovable', 'waitingOn', 'canActRow', 'canSkipRow')];
+        });
+
+        return view('peminjaman-mess.index', compact('peminjamans', 'departments', 'designatedDepartment', 'approvalMeta'));
     }
 
     /**
@@ -321,11 +340,7 @@ class PeminjamanMessController extends Controller
             $peminjaman->{"{$stage}_approved_by"} = $user->id;
             $peminjaman->{"{$stage}_approved_at"} = now();
 
-            if (method_exists($peminjaman, 'settleApprovalStage')) {
-                $peminjaman->settleApprovalStage();
-            } else {
-                $peminjaman->approval_status = $this->nextApprovalLabel($stage);
-            }
+            $peminjaman->settleApprovalStage();
 
             if ($peminjaman->peminjaman_status === 'Disetujui' || $stage === 'admin') {
                 $peminjaman->peminjaman_status = 'Disetujui';
@@ -881,18 +896,6 @@ class PeminjamanMessController extends Controller
         ActivityLog::record($user, 'skip_stage', 'peminjaman_mess', (string) $peminjaman->id, "Melewati tahap {$stage} untuk {$peminjaman->peminjaman_code}: {$validated['alasan']}");
 
         return response()->json($peminjaman->fresh());
-    }
-
-    private function nextApprovalLabel(string $currentStage): string
-    {
-        return match ($currentStage) {
-            'staff' => 'Menunggu Kasubbag',
-            'kasubbag' => 'Menunggu Kabag',
-            'kabag' => 'Menunggu Kabag SDM',
-            'kabag_sdm' => 'Menunggu Admin',
-            'admin' => 'Disetujui',
-            default => 'Disetujui',
-        };
     }
 
     private function assertIsApproverForStage($user, MessBorrowing $peminjaman, string $stage): void
