@@ -159,6 +159,28 @@ class GuestBookingWizardTest extends TestCase
         $this->assertSame(1, MessBorrowing::count());
     }
 
+    public function test_tanggal_masuk_boleh_tanggal_yang_sudah_lewat_untuk_tamu_mendadak(): void
+    {
+        Jabatan::create(['nama' => 'Staff', 'level' => 1, 'status' => 'Aktif']);
+        $bungalow = Bungalow::create(['nama' => 'Bungalow', 'alamat' => 'X', 'kapasitas' => 4, 'status' => 'aktif', 'minimum_jabatan' => 'Staff']);
+        $admin = $this->makeUser('Staff Approval');
+
+        // Tamu mendadak sudah check-in duluan, pengajuannya baru diinput
+        // belakangan (menyusul) - tanggal masuk beberapa hari ke belakang
+        // TIDAK boleh ditolak sebagai "sudah lewat".
+        $response = $this->actingAs($admin)->post(route('peminjaman.store'), [
+            'nama' => 'Tamu Mendadak', 'telepon' => '0811', 'peminjam_jabatan' => 'Staff',
+            'jumlah_tamu' => 1, 'unit_type' => 'bungalow', 'keperluan' => 'Test',
+            'tanggal_masuk' => now()->subDays(2)->format('Y-m-d'),
+            'tanggal_keluar' => now()->format('Y-m-d'),
+            'unit_id' => $bungalow->id,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $peminjaman = MessBorrowing::firstOrFail();
+        $this->assertSame(now()->subDays(2)->format('Y-m-d') . ' 12:00', $peminjaman->waktu_mulai->format('Y-m-d H:i'));
+    }
+
     public function test_store_rejects_unit_over_capacity_even_if_hidden_fields_tampered(): void
     {
         Jabatan::create(['nama' => 'Staff', 'level' => 1, 'status' => 'Aktif']);

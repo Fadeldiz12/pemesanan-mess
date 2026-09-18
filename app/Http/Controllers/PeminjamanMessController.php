@@ -833,10 +833,11 @@ class PeminjamanMessController extends Controller
             'jumlah_tamu' => ['required', 'integer', 'min:1'],
             'unit_type' => ['required', Rule::in(array_keys(self::BOOKABLE_MAP))],
             // Cuma tanggal - jam check-in/check-out sudah tetap (lihat
-            // JAM_CHECK_IN/JAM_CHECK_OUT), gak perlu dipilih admin. 'today'
-            // (bukan 'now') supaya tanggal hari ini tetap boleh diinput
-            // kapan pun, walau jam check-in (12:00) sudah lewat saat ini.
-            'tanggal_masuk' => ['required', 'date', 'after_or_equal:today'],
+            // JAM_CHECK_IN/JAM_CHECK_OUT), gak perlu dipilih admin. SENGAJA
+            // tidak dibatasi 'after_or_equal:today' - kalau ada tamu
+            // mendadak yang sudah masuk duluan, pengajuannya boleh menyusul
+            // diinput dengan tanggal masuk yang sudah lewat.
+            'tanggal_masuk' => ['required', 'date'],
             // Checkout (10:00) lebih pagi dari check-in (12:00), jadi
             // gak mungkin dalam hari yang sama - wajib strictly after.
             'tanggal_keluar' => ['required', 'date', 'after:tanggal_masuk'],
