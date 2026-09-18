@@ -14,6 +14,9 @@ class ExampleTest extends TestCase
     {
         $response = $this->get('/');
 
-        $response->assertStatus(200);
+        // Halaman utama sengaja redirect ke Data Peminjaman (lihat
+        // routes/web.php: Route::redirect('/', '/peminjaman-mess')),
+        // bukan halaman 200 mandiri.
+        $response->assertRedirect('/peminjaman-mess');
     }
 }
