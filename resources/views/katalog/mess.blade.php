@@ -7,7 +7,9 @@
 <a href="{{ route('katalog.index') }}" class="btn btn-light border btn-sm mb-3"><i class="ti ti-arrow-left me-1"></i>Kembali ke Katalog</a>
 
 <div class="card border-0 shadow-sm mb-4">
-    @php $allPhotos = $mess->photos->pluck('path')->when($mess->foto, fn ($c) => $c->prepend($mess->foto))->unique(); @endphp
+    @php
+    $allPhotos = $mess->photos->pluck('path')->when($mess->foto, fn ($c) => $c->prepend($mess->foto))->unique();
+@endphp
     @if($allPhotos->isNotEmpty())
         <div class="row g-1 p-1">
             <div class="col-12 col-md-8">
@@ -62,6 +64,7 @@
         @php
             $tersedia = $kamar->status_ketersediaan === 'Aktif';
             $kamarCover = $kamar->photos->first()->path ?? $kamar->foto;
+            $kamarCalendarGrids = \App\Support\CalendarGrid::build($calendarMonths, $bookedDatesByKamar[$kamar->id] ?? []);
         @endphp
         <div class="col-12 col-md-6">
             {{-- overflow-hidden: sudut kartunya tetap rapi tanpa perlu rounded-start,
@@ -94,13 +97,61 @@
                                     @endforeach
                                 </p>
                             @endif
-                            @if($tersedia)
-                                <a href="{{ route('peminjaman.create', ['unit_type' => 'kamar', 'preselect_unit_id' => $kamar->id]) }}" class="btn btn-primary btn-sm">
-                                    Pesan Sekarang
-                                </a>
-                            @else
-                                <button class="btn btn-outline-secondary btn-sm" disabled>Tidak Tersedia</button>
-                            @endif
+                            <div class="d-flex gap-2 flex-wrap">
+                                @if($tersedia)
+                                    <a href="{{ route('peminjaman.create', ['unit_type' => 'kamar', 'preselect_unit_id' => $kamar->id]) }}" class="btn btn-primary btn-sm">
+                                        Pesan Sekarang
+                                    </a>
+                                @else
+                                    <button class="btn btn-outline-secondary btn-sm" disabled>Tidak Tersedia</button>
+                                @endif
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#kalenderKamar{{ $kamar->id }}">
+                                    <i class="ti ti-calendar me-1"></i>Lihat Kalender
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Kalender ketersediaan per kamar - collapsible supaya kartu
+                     tidak jadi terlalu panjang saat mess punya banyak kamar. --}}
+                <div class="collapse" id="kalenderKamar{{ $kamar->id }}">
+                    <div class="card-body pt-0">
+                        <hr class="mt-0">
+                        <div class="d-flex align-items-center gap-3 mb-2 small text-secondary">
+                            <span><span class="badge bg-danger-subtle text-danger border">&nbsp;</span> Sudah terpakai</span>
+                            <span><span class="badge bg-white border">&nbsp;</span> Tersedia</span>
+                        </div>
+                        <div class="row g-3">
+                            @foreach($kamarCalendarGrids as $grid)
+                                <div class="col-12">
+                                    <h6 class="text-center fw-semibold small mb-2">{{ $grid['label'] }}</h6>
+                                    <table class="table table-sm table-borderless text-center mb-0">
+                                        <thead>
+                                            <tr class="small text-secondary">
+                                                @foreach(['Min','Sen','Sel','Rab','Kam','Jum','Sab'] as $hari)
+                                                    <th class="fw-normal">{{ $hari }}</th>
+                                                @endforeach
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($grid['weeks'] as $week)
+                                                <tr>
+                                                    @foreach($week as $day)
+                                                        <td class="p-1">
+                                                            @if($day)
+                                                                <span class="d-inline-flex align-items-center justify-content-center rounded-circle small {{ $day['terpakai'] ? 'bg-danger-subtle text-danger fw-semibold' : ($day['lewat'] ? 'text-muted' : 'text-dark') }}" style="width:24px;height:24px;">
+                                                                    {{ $day['label'] }}
+                                                                </span>
+                                                            @endif
+                                                        </td>
+                                                    @endforeach
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @endforeach
                         </div>
                     </div>
                 </div>

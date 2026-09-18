@@ -18,6 +18,38 @@
     <div class="ms-auto">
         <ul class="list-unstyled d-flex align-items-center mb-0 gap-1">
             <li class="dropdown">
+                <a href="#" class="btn btn-light btn-icon btn-sm position-relative" role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notifikasi">
+                    <i class="ti ti-bell"></i>
+                    @if(($unreadNotificationsCount ?? 0) > 0)
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:.6rem;">
+                            {{ $unreadNotificationsCount > 9 ? '9+' : $unreadNotificationsCount }}
+                        </span>
+                    @endif
+                </a>
+                <div class="dropdown-menu dropdown-menu-end p-0" style="min-width: 320px; max-width: 360px;">
+                    <div class="d-flex justify-content-between align-items-center border-bottom px-3 py-2">
+                        <h6 class="mb-0 small fw-semibold">Notifikasi</h6>
+                        @if(($unreadNotificationsCount ?? 0) > 0)
+                            <form method="post" action="{{ route('notifications.read-all') }}">
+                                @csrf
+                                <button type="submit" class="btn btn-link btn-sm p-0 small">Tandai semua dibaca</button>
+                            </form>
+                        @endif
+                    </div>
+                    <div style="max-height: 340px; overflow-y: auto;">
+                        @forelse(($recentNotifications ?? []) as $notification)
+                            <a href="{{ route('notifications.read', $notification->id) }}" class="dropdown-item px-3 py-2 {{ $notification->read_at ? '' : 'bg-light' }}" style="white-space: normal;">
+                                <div class="small">{{ $notification->data['message'] ?? '-' }}</div>
+                                <div class="text-secondary" style="font-size:.7rem;">{{ $notification->created_at->diffForHumans() }}</div>
+                            </a>
+                        @empty
+                            <div class="text-secondary small text-center py-4">Belum ada notifikasi.</div>
+                        @endforelse
+                    </div>
+                    <a href="{{ route('notifications.index') }}" class="dropdown-item text-center small border-top py-2">Lihat semua notifikasi</a>
+                </div>
+            </li>
+            <li class="dropdown">
                 <a href="#" class="d-flex align-items-center gap-2 text-decoration-none" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                     <span class="d-none d-md-block text-end">
                         <span class="d-block small fw-semibold">{{ auth()->user()->name }}</span>

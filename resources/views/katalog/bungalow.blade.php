@@ -7,21 +7,11 @@
     $tersedia = $bungalow->status === 'aktif';
     $allPhotos = $bungalow->photos->pluck('path')->when($bungalow->foto, fn ($c) => $c->prepend($bungalow->foto))->unique();
 
-    // Bangun grid kalender per bulan (Minggu-Sabtu) buat highlight tanggal
-    // yang sudah terpakai (poin 1 panduan pengembangan fitur).
-    $calendarGrids = collect($calendarMonths)->map(function ($monthStart) use ($bookedDates) {
-        $daysInMonth = $monthStart->daysInMonth;
-        $offset = $monthStart->copy()->startOfMonth()->dayOfWeek; // 0 = Minggu
-        $cells = array_fill(0, $offset, null);
-        for ($d = 1; $d <= $daysInMonth; $d++) {
-            $date = $monthStart->copy()->day($d);
-            $cells[] = ['label' => $d, 'terpakai' => in_array($date->format('Y-m-d'), $bookedDates, true), 'lewat' => $date->lt(now()->startOfDay())];
-        }
-        while (count($cells) % 7 !== 0) {
-            $cells[] = null;
-        }
-        return ['label' => $monthStart->translatedFormat('F Y'), 'weeks' => array_chunk($cells, 7)];
-    });
+    // Grid kalender per bulan (Minggu-Sabtu) buat highlight tanggal yang
+    // sudah terpakai (poin 1 panduan pengembangan fitur) - logic-nya di
+    // App\Support\CalendarGrid supaya bisa dipakai ulang untuk Kamar juga
+    // (lihat katalog/mess.blade.php).
+    $calendarGrids = \App\Support\CalendarGrid::build($calendarMonths, $bookedDates);
 @endphp
 
 @section('content')

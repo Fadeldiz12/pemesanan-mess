@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Bungalow;
 use App\Models\Jabatan;
+use App\Models\Kamar;
 use App\Models\Mess;
 use App\Models\MessBorrowing;
 use App\Models\User;
@@ -112,6 +113,44 @@ class KatalogUnitTest extends TestCase
         $response->assertSee('Kalender Ketersediaan');
         $response->assertSee('unit_type=bungalow');
         $response->assertSee('preselect_unit_id=' . $bungalow->id);
+    }
+
+    public function test_mess_detail_shows_booked_dates_per_kamar_calendar(): void
+    {
+        $user = $this->makeUser('Staff Approval');
+        Jabatan::firstOrCreate(['nama' => 'Staff'], ['level' => 1, 'status' => 'Aktif']);
+        $mess = Mess::create(['nama' => 'Mess Kalender', 'alamat' => 'X', 'status' => 'Aktif']);
+        $kamar = $mess->kamars()->create(['nama_kamar' => 'Kamar Kalender', 'kapasitas' => 2, 'status_ketersediaan' => 'Aktif', 'minimum_jabatan' => 'Staff']);
+        $kamarLain = $mess->kamars()->create(['nama_kamar' => 'Kamar Lain', 'kapasitas' => 2, 'status_ketersediaan' => 'Aktif', 'minimum_jabatan' => 'Staff']);
+
+        MessBorrowing::create([
+            'bookable_type' => Kamar::class,
+            'bookable_id' => $kamar->id,
+            'waktu_mulai' => now()->addDays(2),
+            'waktu_selesai' => now()->addDays(3),
+            'peminjam_department' => 'Keuangan',
+            'peminjam_sub_department' => 'Umum',
+            'peminjam_role' => 'Staff Approval',
+            'peminjam_name' => 'Tamu Kalender',
+            'peminjam_telepon' => '08123',
+            'peminjam_jabatan' => 'Staff',
+            'peminjam_username' => 'tamu',
+            'jumlah_tamu' => 2,
+            'keperluan' => 'Uji coba',
+            'harga' => 0,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('katalog.mess', $mess));
+
+        $response->assertOk();
+        // Tombol/panel kalender muncul untuk KEDUA kamar (bukan cuma yang
+        // kebetulan ada booking-nya) - regresi N+1: sebelum diperbaiki,
+        // showMess() tidak menghitung ketersediaan per kamar sama sekali.
+        $response->assertSee('kalenderKamar' . $kamar->id, false);
+        $response->assertSee('kalenderKamar' . $kamarLain->id, false);
+        // Tanggal yang sudah terpakai untuk Kamar Kalender tampil dengan
+        // class highlight khusus (lihat App\Support\CalendarGrid).
+        $response->assertSee('bg-danger-subtle text-danger fw-semibold', false);
     }
 
     public function test_admin_can_upload_and_delete_gallery_photos_for_kamar(): void
