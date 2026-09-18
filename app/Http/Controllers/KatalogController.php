@@ -7,6 +7,7 @@ use App\Models\Kamar;
 use App\Models\Mess;
 use App\Models\MessBorrowing;
 use App\Models\Rating;
+use App\Support\AccessMatrix;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
@@ -77,6 +78,13 @@ class KatalogController extends Controller
             'ratingCount' => $ratingCount,
             'bookedDatesByKamar' => $bookedDatesByKamar,
             'calendarMonths' => [now()->startOfMonth(), now()->addMonthNoOverflow()->startOfMonth()],
+            // Tombol "Pesan Sekarang" cuma boleh muncul untuk role yang
+            // memang berwenang mengajukan (lihat authorizeAction() di
+            // PeminjamanMessController::store()) - dicek dari matrix yang
+            // sama persis dengan link sidebar "Ajukan Peminjaman", supaya
+            // perubahan izin lewat Management Akses otomatis kepakai di
+            // sini juga tanpa perlu ubah kode.
+            'canBook' => AccessMatrix::can('peminjaman-mess', 'create'),
         ]);
     }
 
@@ -101,6 +109,7 @@ class KatalogController extends Controller
             'ratingCount' => $ratingCount,
             'bookedDates' => $bookedDates,
             'calendarMonths' => [now()->startOfMonth(), now()->addMonthNoOverflow()->startOfMonth()],
+            'canBook' => AccessMatrix::can('peminjaman-mess', 'create'),
         ]);
     }
 

@@ -120,12 +120,14 @@
         <div class="card border-0 shadow-sm booking-cta">
             <div class="card-body p-3 p-xl-4 text-center">
                 <span class="badge {{ $tersedia ? 'bg-success' : 'bg-danger' }} mb-2 mb-xl-3">{{ $tersedia ? 'Tersedia' : 'Tidak Tersedia' }}</span>
-                @if($tersedia)
+                @if(!$tersedia)
+                    <button class="btn btn-outline-secondary w-100 py-2" disabled>Tidak Tersedia</button>
+                @elseif($canBook)
                     <a href="{{ route('peminjaman.create', ['unit_type' => 'bungalow', 'preselect_unit_id' => $bungalow->id]) }}" class="btn btn-primary w-100 py-2 fw-semibold">
                         Pesan Sekarang
                     </a>
                 @else
-                    <button class="btn btn-outline-secondary w-100 py-2" disabled>Tidak Tersedia</button>
+                    <p class="text-secondary small mb-0">Hanya Staff Approval yang dapat mengajukan peminjaman - hubungi Staff Sub Bagian Anda.</p>
                 @endif
             </div>
         </div>

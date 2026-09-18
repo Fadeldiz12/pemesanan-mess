@@ -97,13 +97,15 @@
                                     @endforeach
                                 </p>
                             @endif
-                            <div class="d-flex gap-2 flex-wrap">
-                                @if($tersedia)
+                            <div class="d-flex gap-2 flex-wrap align-items-center">
+                                @if(!$tersedia)
+                                    <button class="btn btn-outline-secondary btn-sm" disabled>Tidak Tersedia</button>
+                                @elseif($canBook)
                                     <a href="{{ route('peminjaman.create', ['unit_type' => 'kamar', 'preselect_unit_id' => $kamar->id]) }}" class="btn btn-primary btn-sm">
                                         Pesan Sekarang
                                     </a>
                                 @else
-                                    <button class="btn btn-outline-secondary btn-sm" disabled>Tidak Tersedia</button>
+                                    <p class="text-secondary small mb-0">Hanya Staff Approval yang dapat mengajukan peminjaman.</p>
                                 @endif
                                 <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#kalenderKamar{{ $kamar->id }}">
                                     <i class="ti ti-calendar me-1"></i>Lihat Kalender

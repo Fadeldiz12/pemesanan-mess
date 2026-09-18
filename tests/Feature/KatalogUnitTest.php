@@ -115,6 +115,35 @@ class KatalogUnitTest extends TestCase
         $response->assertSee('preselect_unit_id=' . $bungalow->id);
     }
 
+    public function test_pesan_sekarang_button_hidden_for_roles_without_create_permission(): void
+    {
+        Jabatan::firstOrCreate(['nama' => 'Staff'], ['level' => 1, 'status' => 'Aktif']);
+        $mess = Mess::create(['nama' => 'Mess Akses', 'alamat' => 'X', 'status' => 'Aktif']);
+        $mess->kamars()->create(['nama_kamar' => 'Kamar Akses', 'kapasitas' => 2, 'status_ketersediaan' => 'Aktif', 'minimum_jabatan' => 'Staff']);
+        $bungalow = Bungalow::create(['nama' => 'Bungalow Akses', 'alamat' => 'X', 'kapasitas' => 4, 'status' => 'aktif', 'minimum_jabatan' => 'Staff']);
+
+        // Kabag Approval TIDAK punya 'create' pada peminjaman-mess by default
+        // (lihat AccessMatrix::defaults()) - tombol Pesan Sekarang harus
+        // disembunyikan, walau unit-nya sendiri tersedia, karena mengklik
+        // tombol itu toh akan ditolak 403 di server.
+        $kabag = $this->makeUser('Kabag Approval');
+
+        $messResponse = $this->actingAs($kabag)->get(route('katalog.mess', $mess));
+        $messResponse->assertOk();
+        $messResponse->assertDontSee('Pesan Sekarang');
+        $messResponse->assertSee('Hanya Staff Approval yang dapat mengajukan peminjaman');
+
+        $bungalowResponse = $this->actingAs($kabag)->get(route('katalog.bungalow', $bungalow));
+        $bungalowResponse->assertOk();
+        $bungalowResponse->assertDontSee('Pesan Sekarang');
+        $bungalowResponse->assertSee('Hanya Staff Approval yang dapat mengajukan peminjaman');
+
+        // Staff Approval tetap melihat tombolnya seperti biasa.
+        $staff = $this->makeUser('Staff Approval');
+        $this->actingAs($staff)->get(route('katalog.mess', $mess))->assertSee('Pesan Sekarang');
+        $this->actingAs($staff)->get(route('katalog.bungalow', $bungalow))->assertSee('Pesan Sekarang');
+    }
+
     public function test_mess_detail_shows_booked_dates_per_kamar_calendar(): void
     {
         $user = $this->makeUser('Staff Approval');
