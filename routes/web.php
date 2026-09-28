@@ -20,6 +20,7 @@ use App\Http\Controllers\JabatanController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\MessReportController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\WorkflowSettingController;
 use App\Http\Middleware\ForceChangePassword;
 use App\Http\Middleware\UserIsActive;
@@ -54,6 +55,11 @@ Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->gr
     Route::get('/dashboard', function () {
         return view('dashboard.index');
     })->name('dashboard');
+
+    // Notifikasi in-app (lihat App\Notifications & MessBorrowing::notifyApprovalStatusChange())
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
 
     // Katalog Unit ala Traveloka (poin 1 panduan pengembangan fitur):
     // listing + detail unit sebelum masuk form pengajuan.

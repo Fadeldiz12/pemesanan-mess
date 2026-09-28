@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\Department;
+use App\Models\WorkflowSetting;
 use App\Support\AccessMatrix;
 use Illuminate\Http\Request;
 
@@ -55,6 +56,15 @@ class DepartmentController extends Controller
             return back()->with('warning', 'Bagian tidak bisa dinonaktifkan karena masih ada peminjaman mess/bungalow yang berjalan di bagian ini.')->withInput();
         }
 
+        // Bagian yang sedang ditunjuk sebagai approver Kabag SDM lintas-bagian
+        // (lihat WorkflowSettingController) tidak boleh dinonaktifkan diam-diam -
+        // paksa Super Admin ganti/kosongkan penunjukannya dulu di halaman
+        // Approval Final SDM, supaya tidak ada tahap approval company-wide yang
+        // tergantung ke bagian yang sudah tidak aktif tanpa disadari.
+        if ($isDeactivating && WorkflowSetting::designatedDepartment()?->id === $department->id) {
+            return back()->with('warning', 'Bagian tidak bisa dinonaktifkan karena sedang ditunjuk sebagai bagian approval final Kabag SDM. Ubah penunjukannya dulu di halaman Approval Final SDM.')->withInput();
+        }
+
         // 1. Ambil snapshot data lama untuk pembanding audit sebelum di-update
         $originalData = $department->only(['code', 'name', 'status', 'description']);
 
@@ -102,6 +112,10 @@ class DepartmentController extends Controller
 
         if ($department->subDepartments()->exists()) {
             return back()->with('warning', 'Bagian tidak bisa dihapus karena masih memiliki subbagian. Hapus subbagian terlebih dahulu.');
+        }
+
+        if (WorkflowSetting::designatedDepartment()?->id === $department->id) {
+            return back()->with('warning', 'Bagian tidak bisa dihapus karena sedang ditunjuk sebagai bagian approval final Kabag SDM. Ubah penunjukannya dulu di halaman Approval Final SDM.');
         }
 
         ActivityLog::record(auth()->user(), 'Hapus Bagian', 'Bagian', $department->id, $department->name);

@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Notifications\ApprovalRequested;
+use App\Notifications\SubmissionDecided;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Notification;
 
 class MessBorrowing extends Model
 {
@@ -115,6 +118,47 @@ class MessBorrowing extends Model
 
             $peminjaman->settleApprovalStage();
         });
+
+        // Notifikasi in-app - dipasang di event model (bukan disebar manual
+        // di tiap tempat yang memanggil settleApprovalStage()/reject(), yang
+        // jumlahnya banyak: approve()/reject() di 2 controller, skipStage(),
+        // sweep toggle ketersediaan approver, dan pembuatan pengajuan baru)
+        // supaya SETIAP transisi approval_status (siapapun/apapun jalan yang
+        // memicunya) otomatis kena, tanpa risiko ada satu jalur yang kelewatan.
+        //
+        // 'created' (BUKAN 'saved') untuk pengajuan baru: performInsert()
+        // TIDAK PERNAH memanggil syncChanges(), jadi wasChanged() selalu
+        // false persis setelah INSERT pertama - pakai 'created' (yang cuma
+        // sekali per siklus hidup objek, dan $this->id sudah terisi di titik
+        // ini) supaya notifikasi tahap awal tetap terkirim. 'updated' (yang
+        // performUpdate() MEMANG panggil syncChanges()-nya) dipakai untuk
+        // semua transisi belakangan, dijaga wasChanged() supaya tidak
+        // terkirim ulang kalau approval_status-nya kebetulan tidak berubah.
+        static::created(function (MessBorrowing $peminjaman) {
+            $peminjaman->notifyApprovalStatusChange();
+        });
+
+        static::updated(function (MessBorrowing $peminjaman) {
+            if ($peminjaman->wasChanged('approval_status')) {
+                $peminjaman->notifyApprovalStatusChange();
+            }
+        });
+    }
+
+    private function notifyApprovalStatusChange(): void
+    {
+        $stage = $this->currentApprovalStage();
+
+        if ($stage) {
+            $label = self::STAGE_LABELS[$stage] ?? $stage;
+            Notification::send($this->candidateApprovers($stage), new ApprovalRequested($this, $label));
+
+            return;
+        }
+
+        if (in_array($this->approval_status, ['Disetujui', 'Ditolak'], true) && $this->pemohon) {
+            $this->pemohon->notify(new SubmissionDecided($this));
+        }
     }
 
     public function settleApprovalStage(): void

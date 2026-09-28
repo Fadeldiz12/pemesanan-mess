@@ -7,21 +7,11 @@
     $tersedia = $bungalow->status === 'aktif';
     $allPhotos = $bungalow->photos->pluck('path')->when($bungalow->foto, fn ($c) => $c->prepend($bungalow->foto))->unique();
 
-    // Bangun grid kalender per bulan (Minggu-Sabtu) buat highlight tanggal
-    // yang sudah terpakai (poin 1 panduan pengembangan fitur).
-    $calendarGrids = collect($calendarMonths)->map(function ($monthStart) use ($bookedDates) {
-        $daysInMonth = $monthStart->daysInMonth;
-        $offset = $monthStart->copy()->startOfMonth()->dayOfWeek; // 0 = Minggu
-        $cells = array_fill(0, $offset, null);
-        for ($d = 1; $d <= $daysInMonth; $d++) {
-            $date = $monthStart->copy()->day($d);
-            $cells[] = ['label' => $d, 'terpakai' => in_array($date->format('Y-m-d'), $bookedDates, true), 'lewat' => $date->lt(now()->startOfDay())];
-        }
-        while (count($cells) % 7 !== 0) {
-            $cells[] = null;
-        }
-        return ['label' => $monthStart->translatedFormat('F Y'), 'weeks' => array_chunk($cells, 7)];
-    });
+    // Grid kalender per bulan (Minggu-Sabtu) buat highlight tanggal yang
+    // sudah terpakai (poin 1 panduan pengembangan fitur) - logic-nya di
+    // App\Support\CalendarGrid supaya bisa dipakai ulang untuk Kamar juga
+    // (lihat katalog/mess.blade.php).
+    $calendarGrids = \App\Support\CalendarGrid::build($calendarMonths, $bookedDates);
 @endphp
 
 @section('content')
@@ -130,12 +120,14 @@
         <div class="card border-0 shadow-sm booking-cta">
             <div class="card-body p-3 p-xl-4 text-center">
                 <span class="badge {{ $tersedia ? 'bg-success' : 'bg-danger' }} mb-2 mb-xl-3">{{ $tersedia ? 'Tersedia' : 'Tidak Tersedia' }}</span>
-                @if($tersedia)
+                @if(!$tersedia)
+                    <button class="btn btn-outline-secondary w-100 py-2" disabled>Tidak Tersedia</button>
+                @elseif($canBook)
                     <a href="{{ route('peminjaman.create', ['unit_type' => 'bungalow', 'preselect_unit_id' => $bungalow->id]) }}" class="btn btn-primary w-100 py-2 fw-semibold">
                         Pesan Sekarang
                     </a>
                 @else
-                    <button class="btn btn-outline-secondary w-100 py-2" disabled>Tidak Tersedia</button>
+                    <p class="text-secondary small mb-0">Hanya Staff Approval yang dapat mengajukan peminjaman - hubungi Staff Sub Bagian Anda.</p>
                 @endif
             </div>
         </div>

@@ -7,6 +7,7 @@ use App\Models\Kamar;
 use App\Models\Mess;
 use App\Models\MessBorrowing;
 use App\Models\Rating;
+use App\Support\AccessMatrix;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
@@ -58,10 +59,32 @@ class KatalogController extends Controller
             ->whereIn('bookable_id', $ratingIds)
             ->count();
 
+        // Kalender ketersediaan per kamar (poin 1 panduan pengembangan
+        // fitur, sama seperti yang sudah ada di halaman detail Bungalow) -
+        // satu query untuk SEMUA kamar di mess ini (bukan N+1 per kamar),
+        // baru dikelompokkan per bookable_id di sisi PHP.
+        $bookedRanges = MessBorrowing::where('bookable_type', Kamar::class)
+            ->whereIn('bookable_id', $ratingIds)
+            ->whereNotIn('peminjaman_status', ['Ditolak', 'Dibatalkan', 'Perlu Reschedule'])
+            ->where('waktu_selesai', '>=', now()->startOfDay())
+            ->get(['bookable_id', 'waktu_mulai', 'waktu_selesai']);
+
+        $bookedDatesByKamar = $bookedRanges->groupBy('bookable_id')
+            ->map(fn ($ranges) => $this->expandBookedDates($ranges));
+
         return view('katalog.mess', [
             'mess' => $mess,
             'ratingAverage' => $ratingAverage,
             'ratingCount' => $ratingCount,
+            'bookedDatesByKamar' => $bookedDatesByKamar,
+            'calendarMonths' => [now()->startOfMonth(), now()->addMonthNoOverflow()->startOfMonth()],
+            // Tombol "Pesan Sekarang" cuma boleh muncul untuk role yang
+            // memang berwenang mengajukan (lihat authorizeAction() di
+            // PeminjamanMessController::store()) - dicek dari matrix yang
+            // sama persis dengan link sidebar "Ajukan Peminjaman", supaya
+            // perubahan izin lewat Management Akses otomatis kepakai di
+            // sini juga tanpa perlu ubah kode.
+            'canBook' => AccessMatrix::can('peminjaman-mess', 'create'),
         ]);
     }
 
@@ -86,13 +109,14 @@ class KatalogController extends Controller
             'ratingCount' => $ratingCount,
             'bookedDates' => $bookedDates,
             'calendarMonths' => [now()->startOfMonth(), now()->addMonthNoOverflow()->startOfMonth()],
+            'canBook' => AccessMatrix::can('peminjaman-mess', 'create'),
         ]);
     }
 
     /**
      * Ubah rentang waktu_mulai/waktu_selesai jadi set tanggal (Y-m-d) yang
      * "sudah terpakai" - dipakai buat highlight kalender di halaman detail
-     * Bungalow.
+     * Bungalow maupun kalender per kamar di halaman detail Mess.
      */
     private function expandBookedDates($ranges): array
     {

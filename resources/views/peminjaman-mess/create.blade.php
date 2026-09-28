@@ -75,12 +75,12 @@
                     <div class="row g-3 mb-3">
                         <div class="col-12 col-md-6">
                             <label for="tanggal_masuk" class="form-label">Tanggal Masuk</label>
-                            <input type="date" name="tanggal_masuk" id="tanggal_masuk" class="form-control" value="{{ old('tanggal_masuk') }}" min="{{ now()->format('Y-m-d') }}" required>
-                            <div class="form-text">Check-in jam 12:00.</div>
+                            <input type="date" name="tanggal_masuk" id="tanggal_masuk" class="form-control" value="{{ old('tanggal_masuk') }}" required>
+                            <div class="form-text">Check-in jam 12:00. Boleh tanggal yang sudah lewat untuk tamu mendadak yang pengajuannya menyusul.</div>
                         </div>
                         <div class="col-12 col-md-6">
                             <label for="tanggal_keluar" class="form-label">Tanggal Keluar</label>
-                            <input type="date" name="tanggal_keluar" id="tanggal_keluar" class="form-control" value="{{ old('tanggal_keluar') }}" min="{{ now()->format('Y-m-d') }}" required>
+                            <input type="date" name="tanggal_keluar" id="tanggal_keluar" class="form-control" value="{{ old('tanggal_keluar') }}" required>
                             <div class="form-text">Check-out jam 10:00.</div>
                         </div>
                     </div>
