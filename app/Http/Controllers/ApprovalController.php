@@ -16,9 +16,13 @@ class ApprovalController extends Controller
         $user = auth()->user();
         $role = $user->role;
 
-        // KUNCI PERBAIKAN: Admin tidak punya urusan di menu ini. 
-        // Admin akan memproses semuanya di menu Peminjaman Mess.
-        if (in_array($role, ['Super Admin', 'Admin'])) {
+        // KUNCI PERBAIKAN: Admin tidak punya urusan di menu ini.
+        // Admin akan memproses semuanya di menu Peminjaman Mess. Super Admin
+        // SENGAJA dikecualikan dari blokir ini (beda dari Admin biasa) -
+        // "akses semua, termasuk approval" berarti Super Admin juga boleh
+        // memproses lewat menu Approval ini, bukan cuma menu Peminjaman Mess
+        // (lihat MessBorrowing::scopePendingApprovalFor() & isApproverForStage()).
+        if ($role === 'Admin') {
             abort(403, 'Administrator memproses validasi akhir langsung dari menu Peminjaman Mess, bukan menu Approval.');
         }
 
@@ -115,7 +119,7 @@ class ApprovalController extends Controller
         abort_unless($borrowing->approval_status === $expected, 422, 'Approval harus berurutan.');
 
         abort_unless(
-            $borrowing->candidateApprovers($stage)->pluck('id')->contains(auth()->id()),
+            $borrowing->isApproverForStage(auth()->user(), $stage),
             403,
             'Anda tidak berwenang memproses tahap ini.'
         );

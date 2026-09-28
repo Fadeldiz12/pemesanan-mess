@@ -37,8 +37,11 @@
                         default => null
                     };
                     
-                    // Menentukan apakah user login berhak melakukan approval pada baris ini
+                    // Menentukan apakah user login berhak melakukan approval pada baris ini.
+                    // Super Admin bypass total (boleh approve/reject tahap manapun),
+                    // role lain tetap harus persis approver tahap tsb.
                     $canAct = $level && (
+                        $roleSaya === 'Super Admin' ||
                         ($roleSaya === 'Staff Approval' && $level === 'staff') ||
                         ($roleSaya === 'Kasubbag Approval' && $level === 'kasubbag') ||
                         ($roleSaya === 'Kabag Approval' && $level === 'kabag')
@@ -110,6 +113,7 @@
         };
         
         $canAct = $level && (
+            $roleSaya === 'Super Admin' ||
             ($roleSaya === 'Staff Approval' && $level === 'staff') ||
             ($roleSaya === 'Kasubbag Approval' && $level === 'kasubbag') ||
             ($roleSaya === 'Kabag Approval' && $level === 'kabag')
