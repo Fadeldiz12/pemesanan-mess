@@ -27,14 +27,6 @@
     // lagi yang bisa dibentrokkan, dijadwal ulang, atau dibatalkan lagi.
     $adminPanelRelevant = !in_array($peminjaman->peminjaman_status, ['Ditolak', 'Selesai', 'Dibatalkan'], true);
 
-    // Validasi hak akses aksi approval
-    $canAct = false;
-    if ($peminjaman->approval_status === 'Menunggu Staff' && $roleSaya === 'Staff Approval') $canAct = true;
-    if ($peminjaman->approval_status === 'Menunggu Kasubbag' && $roleSaya === 'Kasubbag Approval') $canAct = true;
-    if ($peminjaman->approval_status === 'Menunggu Kabag' && $roleSaya === 'Kabag Approval') $canAct = true;
-    if ($peminjaman->approval_status === 'Menunggu Kabag SDM' && $roleSaya === 'Kabag Approval') $canAct = true;
-    if ($peminjaman->approval_status === 'Menunggu Admin' && $isAdmin) $canAct = true;
-
     // Info approver dinamis untuk Admin/Super Admin (siapa yang harus approve tahap
     // saat ini) - dihitung ulang tiap request dari candidateApprovers() supaya selalu
     // mencerminkan ketersediaan approver saat ini (mis. berkurang kalau sedang cuti).
@@ -44,6 +36,13 @@
     $approvalStageLabels = ['staff' => 'Staff', 'kasubbag' => 'Kasubbag', 'kabag' => 'Kabag', 'kabag_sdm' => 'Kabag SDM'];
     $waitingStage = $peminjaman->currentApprovalStage();
     $waitingOn = ($isAdmin && $waitingStage && array_key_exists($waitingStage, $approvalStageLabels)) ? $peminjaman->candidateApprovers($waitingStage) : null;
+
+    // Validasi hak akses aksi approval - dipusatkan ke
+    // MessBorrowing::isApproverForStage() (Super Admin bypass total di tahap
+    // manapun, role lain tetap harus jadi approver asli tahap yang sedang
+    // ditunggu), supaya tidak lagi drift dari otorisasi backend di
+    // PeminjamanMessController/ApprovalController.
+    $canAct = $waitingStage ? $peminjaman->isApproverForStage(auth()->user(), $waitingStage) : false;
 @endphp
 
 @section('content')

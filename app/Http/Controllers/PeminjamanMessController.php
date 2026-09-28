@@ -89,7 +89,7 @@ class PeminjamanMessController extends Controller
             $waitingOn = $isStageApprovable ? $item->candidateApprovers($stage) : null;
             $canActRow = $stage === 'admin'
                 ? $isAdminView
-                : ($isStageApprovable && $waitingOn->pluck('id')->contains($user?->id));
+                : ($isStageApprovable && $item->isApproverForStage($user, $stage));
             $canSkipRow = $isAdminView && $isStageApprovable;
 
             return [$item->id => compact('stage', 'isStageApprovable', 'waitingOn', 'canActRow', 'canSkipRow')];
@@ -901,9 +901,7 @@ class PeminjamanMessController extends Controller
 
     private function assertIsApproverForStage($user, MessBorrowing $peminjaman, string $stage): void
     {
-        $candidateIds = $peminjaman->candidateApprovers($stage)->pluck('id');
-
-        abort_unless($candidateIds->contains($user->id), 403, 'Anda tidak berwenang memproses tahap ini.');
+        abort_unless($peminjaman->isApproverForStage($user, $stage), 403, 'Anda tidak berwenang memproses tahap ini.');
     }
 
     private function authorizeView($user, MessBorrowing $peminjaman): void

@@ -317,6 +317,23 @@ class MessBorrowing extends Model
     }
 
     /**
+     * Otorisasi AKSI approve/reject tahap tertentu - beda dari
+     * candidateApprovers() (dipakai buat notifikasi & label "menunggu
+     * siapa", TETAP hanya approver asli). Super Admin sengaja di-bypass
+     * total di sini (README: "Super Admin bisa akses semua, termasuk
+     * approval") - boleh approve/reject di tahap manapun terlepas dari
+     * kecocokan department/sub_department/role approver asli tahap itu.
+     */
+    public function isApproverForStage(User $user, string $stage): bool
+    {
+        if ($user->role === 'Super Admin') {
+            return true;
+        }
+
+        return $this->candidateApprovers($stage)->pluck('id')->contains($user->id);
+    }
+
+    /**
      * Toggle "sedang cuti" per bagian/subbagian (lihat migration
      * 2026_09_14_010000). Staff & Kasubbag discope ke SubDepartment (sama
      * seperti candidateApprovers() di atas mensyaratkan department+
@@ -378,6 +395,17 @@ class MessBorrowing extends Model
                     self::addKabagSdmVisibility($q, $user);
                 })
                 : $query->whereRaw('1 = 0'),
+            // Super Admin bisa akses semua - antrian lintas-bagian, semua
+            // tahap chain (staff/kasubbag/kabag/kabag_sdm), TANPA filter
+            // department/sub_department. Tahap 'admin' sengaja tidak
+            // disertakan karena halaman Approval tidak punya route/tombol
+            // untuk tahap itu (tetap ditangani via menu Peminjaman Mess).
+            'Super Admin' => $query->whereIn('approval_status', [
+                'Menunggu ' . self::STAGE_LABELS['staff'],
+                'Menunggu ' . self::STAGE_LABELS['kasubbag'],
+                'Menunggu ' . self::STAGE_LABELS['kabag'],
+                'Menunggu ' . self::STAGE_LABELS['kabag_sdm'],
+            ]),
             default => $query->whereRaw('1 = 0'),
         };
     }
