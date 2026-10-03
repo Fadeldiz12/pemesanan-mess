@@ -54,7 +54,7 @@
                         <td class="detail-data" data-label="Alamat">{{ $bungalow->alamat }}</td>
                         <td data-label="Kapasitas">{{ $bungalow->kapasitas }} orang</td>
                         <td data-label="Rating">
-                            @include('partials.rating-badge', ['avg' => $bungalow->ratings_avg_rating ?? null, 'count' => $bungalow->ratings_count ?? 0])
+                            @include('partials.rating-badge', ['avg' => $bungalow->ratings_avg_rating ?? null, 'count' => $bungalow->ratings_count ?? 0, 'url' => route('ulasan.bungalow', $bungalow->id)])
                         </td>
                         <td class="detail-data" data-label="Min. Jabatan">
                             <span class="badge bg-primary-subtle text-primary">{{ $bungalow->minimum_jabatan }}</span>

@@ -165,6 +165,8 @@ Route::middleware(['auth', UserIsActive::class, ForceChangePassword::class])->gr
     // Rating & Ulasan
     Route::post('/peminjaman-mess/{peminjaman}/rating', [RatingMessController::class, 'store'])->name('rating.store');
     Route::get('/units/{unitType}/{unitId}/ratings', [RatingMessController::class, 'forUnit'])->name('rating.for-unit');
+    Route::get('/ulasan/mess/{mess}', [RatingMessController::class, 'showMess'])->name('ulasan.mess');
+    Route::get('/ulasan/bungalow/{bungalow}', [RatingMessController::class, 'showBungalow'])->name('ulasan.bungalow');
 
     // Pengembalian
     Route::post('/peminjaman-mess/{peminjaman}/return', [ReturnMessController::class, 'store'])->name('peminjaman.return');
