@@ -46,10 +46,10 @@
                         <p class="text-secondary mb-0"><i class="ti ti-map-pin me-1"></i>{{ $bungalow->alamat }}</p>
                     </div>
                     @if($ratingCount > 0)
-                        <div class="text-start text-sm-end">
+                        <a href="{{ route('ulasan.bungalow', $bungalow) }}" class="text-start text-sm-end text-decoration-none" title="Lihat rating & ulasan">
                             <div class="fs-5 fw-bold text-warning"><i class="ti ti-star-filled"></i> {{ number_format($ratingAverage, 1) }}</div>
-                            <div class="small text-secondary">{{ $ratingCount }} ulasan</div>
-                        </div>
+                            <div class="small text-secondary text-decoration-underline">{{ $ratingCount }} ulasan</div>
+                        </a>
                     @endif
                 </div>
 

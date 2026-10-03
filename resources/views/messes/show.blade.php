@@ -37,7 +37,7 @@
 
             <dt class="col-sm-3">Rating</dt>
             <dd class="col-sm-9">
-                @include('partials.rating-badge', ['avg' => $mess->ratings_avg_rating, 'count' => $mess->ratings_count])
+                @include('partials.rating-badge', ['avg' => $mess->ratings_avg_rating, 'count' => $mess->ratings_count, 'url' => route('ulasan.mess', $mess)])
                 <div class="small text-secondary">Rata-rata dari semua kamar di mess ini.</div>
             </dd>
 

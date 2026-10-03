@@ -53,7 +53,7 @@
                         <td class="detail-data" data-label="Alamat">{{ $mess->alamat }}</td>
                         <td data-label="Jumlah Kamar">{{ $mess->kamars_count }} kamar</td>
                         <td data-label="Rating">
-                            @include('partials.rating-badge', ['avg' => $mess->ratings_avg_rating, 'count' => $mess->ratings_count])
+                            @include('partials.rating-badge', ['avg' => $mess->ratings_avg_rating, 'count' => $mess->ratings_count, 'url' => route('ulasan.mess', $mess)])
                         </td>
                         <td data-label="Status">
                             @if($mess->status === 'Aktif')
