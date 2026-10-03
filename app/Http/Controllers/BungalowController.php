@@ -24,6 +24,8 @@ class BungalowController extends Controller
         $this->authorizeAction($request, 'read');
 
         $bungalows = Bungalow::query()
+            ->withCount('ratings')
+            ->withAvg('ratings', 'rating')
             ->when($request->q, fn ($q) => $q->where('nama', 'like', "%{$request->q}%"))
             ->latest()
             ->paginate(10)

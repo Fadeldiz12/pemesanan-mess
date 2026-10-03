@@ -26,12 +26,15 @@ class KatalogController extends Controller
         $tipe = $request->query('tipe');
 
         $messes = $tipe === 'bungalow' ? collect() : Mess::where('status', 'Aktif')
-            ->withCount(['kamars as kamar_tersedia_count' => fn ($q) => $q->where('status_ketersediaan', 'Aktif')])
+            ->withCount(['kamars as kamar_tersedia_count' => fn ($q) => $q->where('status_ketersediaan', 'Aktif'), 'ratings'])
+            ->withAvg('ratings', 'rating')
             ->with('photos')
             ->orderBy('nama')
             ->get();
 
         $bungalows = $tipe === 'mess' ? collect() : Bungalow::where('status', 'aktif')
+            ->withCount('ratings')
+            ->withAvg('ratings', 'rating')
             ->with('photos')
             ->orderBy('nama')
             ->get();

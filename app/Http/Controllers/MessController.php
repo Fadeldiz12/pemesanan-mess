@@ -25,7 +25,8 @@ class MessController extends Controller
     {
         $this->authorizeAction($request, 'read');
 
-        $messes = Mess::withCount('kamars')
+        $messes = Mess::withCount(['kamars', 'ratings'])
+            ->withAvg('ratings', 'rating')
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('search'), function ($q) use ($request) {
                 $q->where('nama', 'like', '%' . $request->search . '%');
@@ -85,6 +86,7 @@ class MessController extends Controller
     public function show(Request $request, Mess $mess): View|JsonResponse
     {
         $mess->load(['kamars' => fn ($q) => $q->orderBy('nama_kamar'), 'photos']);
+        $mess->loadCount('ratings')->loadAvg('ratings', 'rating');
 
         if ($request->wantsJson()) {
             return response()->json($mess);

@@ -36,6 +36,7 @@
                     <th>Nama Mess</th>
                     <th>Alamat</th>
                     <th>Jumlah Kamar</th>
+                    <th>Rating</th>
                     <th>Status</th>
                     <th class="text-center">Aksi</th>
                 </tr>
@@ -51,6 +52,9 @@
                         </td>
                         <td class="detail-data" data-label="Alamat">{{ $mess->alamat }}</td>
                         <td data-label="Jumlah Kamar">{{ $mess->kamars_count }} kamar</td>
+                        <td data-label="Rating">
+                            @include('partials.rating-badge', ['avg' => $mess->ratings_avg_rating, 'count' => $mess->ratings_count])
+                        </td>
                         <td data-label="Status">
                             @if($mess->status === 'Aktif')
                                 <span class="badge bg-success-subtle text-success">Aktif</span>
@@ -76,7 +80,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="text-secondary text-center py-4">Belum ada data mess.</td></tr>
+                    <tr><td colspan="6" class="text-secondary text-center py-4">Belum ada data mess.</td></tr>
                 @endforelse
             </tbody>
         </table>
