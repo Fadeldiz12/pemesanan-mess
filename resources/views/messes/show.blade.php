@@ -35,6 +35,12 @@
                 </span>
             </dd>
 
+            <dt class="col-sm-3">Rating</dt>
+            <dd class="col-sm-9">
+                @include('partials.rating-badge', ['avg' => $mess->ratings_avg_rating, 'count' => $mess->ratings_count])
+                <div class="small text-secondary">Rata-rata dari semua kamar di mess ini.</div>
+            </dd>
+
             <dt class="col-sm-3">Deskripsi</dt>
             <dd class="col-sm-9">{{ $mess->deskripsi ?: '-' }}</dd>
         </dl>

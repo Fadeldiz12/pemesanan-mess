@@ -36,6 +36,7 @@
                     <th>Nama Bungalow</th>
                     <th>Alamat</th>
                     <th>Kapasitas</th>
+                    <th>Rating</th>
                     <th>Min. Jabatan</th>
                     <th>Status</th>
                     <th class="text-center">Aksi</th>
@@ -52,6 +53,9 @@
                         </td>
                         <td class="detail-data" data-label="Alamat">{{ $bungalow->alamat }}</td>
                         <td data-label="Kapasitas">{{ $bungalow->kapasitas }} orang</td>
+                        <td data-label="Rating">
+                            @include('partials.rating-badge', ['avg' => $bungalow->ratings_avg_rating ?? null, 'count' => $bungalow->ratings_count ?? 0])
+                        </td>
                         <td class="detail-data" data-label="Min. Jabatan">
                             <span class="badge bg-primary-subtle text-primary">{{ $bungalow->minimum_jabatan }}</span>
                         </td>
@@ -73,7 +77,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="text-secondary text-center py-4">Belum ada data bungalow.</td></tr>
+                    <tr><td colspan="7" class="text-secondary text-center py-4">Belum ada data bungalow.</td></tr>
                 @endforelse
             </tbody>
         </table>

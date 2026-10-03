@@ -37,7 +37,8 @@
                     <div class="card-body">
                         <h3 class="fs-6 fw-bold text-dark mb-1">{{ $mess->nama }}</h3>
                         <p class="text-secondary small mb-1"><i class="ti ti-map-pin me-1"></i>{{ $mess->alamat }}</p>
-                        <p class="text-secondary small mb-0"><i class="ti ti-door me-1"></i>{{ $mess->kamars_count ?? $mess->kamars->count() }} kamar &middot; {{ $mess->kamar_tersedia_count }} tersedia</p>
+                        <p class="text-secondary small mb-2"><i class="ti ti-door me-1"></i>{{ $mess->kamars_count ?? $mess->kamars->count() }} kamar &middot; {{ $mess->kamar_tersedia_count }} tersedia</p>
+                        @include('partials.rating-badge', ['avg' => $mess->ratings_avg_rating, 'count' => $mess->ratings_count])
                     </div>
                 </div>
             </a>
@@ -70,7 +71,8 @@
                     <div class="card-body">
                         <h3 class="fs-6 fw-bold text-dark mb-1">{{ $bungalow->nama }}</h3>
                         <p class="text-secondary small mb-1"><i class="ti ti-map-pin me-1"></i>{{ $bungalow->alamat }}</p>
-                        <p class="text-secondary small mb-0"><i class="ti ti-users me-1"></i>Kapasitas {{ $bungalow->kapasitas }} orang</p>
+                        <p class="text-secondary small mb-2"><i class="ti ti-users me-1"></i>Kapasitas {{ $bungalow->kapasitas }} orang</p>
+                        @include('partials.rating-badge', ['avg' => $bungalow->ratings_avg_rating, 'count' => $bungalow->ratings_count])
                     </div>
                 </div>
             </a>
